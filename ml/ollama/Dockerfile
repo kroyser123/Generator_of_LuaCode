@@ -1,7 +1,7 @@
 FROM ollama/ollama:0.5.7
 
 # Установка curl для healthcheck
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y curl lua5.4 && rm -rf /var/lib/apt/lists/*
 
 # Копируем скрипт инициализации
 COPY entrypoint.sh /entrypoint.sh

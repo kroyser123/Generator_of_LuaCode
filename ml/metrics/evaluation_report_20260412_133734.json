@@ -1,0 +1,22 @@
+﻿[
+    {
+        "Id":  1,
+        "Status":  "FAIL",
+        "SyntaxOK":  false,
+        "Generated":  "function addEmail(email) table.insert(wf.vars.emails, email) end",
+        "Reference":  "return wf.vars.emails[#wf.vars.emails]"
+    },
+    {
+        "Id":  2,
+        "Status":  "FAIL",
+        "SyntaxOK":  false,
+        "Generated":  "wf.vars.try_count_n = 3",
+        "Reference":  "return wf.vars.try_count_n + 1"
+    },
+    {
+        "Id":  3,
+        "Status":  "ERROR",
+        "Generated":  "",
+        "Match":  false
+    }
+]

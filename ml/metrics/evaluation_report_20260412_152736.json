@@ -1,0 +1,34 @@
+﻿[
+    {
+        "Id":  1,
+        "Status":  "PASS",
+        "SyntaxOK":  true,
+        "Match":  true,
+        "Generated":  "return wf.vars.emails[#wf.vars.emails]",
+        "Reference":  "return wf.vars.emails[#wf.vars.emails]"
+    },
+    {
+        "Id":  2,
+        "Status":  "PASS",
+        "SyntaxOK":  true,
+        "Match":  true,
+        "Generated":  "return wf.vars.try_count_n + 1",
+        "Reference":  "return wf.vars.try_count_n + 1"
+    },
+    {
+        "Id":  3,
+        "Status":  "FAIL",
+        "SyntaxOK":  true,
+        "Match":  false,
+        "Generated":  "result = wf.vars.RESTbody.result\r\nfor _, filteredEntry in pairs(result) do\r\n  for key, value in pairs(filteredEntry) do\r\n    if key ~= \"ID\" and key ~= \"ENTITY_ID\" and key ~= \"CALL\" then\r\n      filteredEntry[key] = nil\r\n    end\r\n  end\r\nend\r\nreturn result",
+        "Reference":  "for _, entry in pairs(wf.vars.RESTbody.result) do for k in pairs(entry) do if k~=\"ID\" and k~=\"ENTITY_ID\" and k~=\"CALL\" then entry[k]=nil end end end; return wf.vars.RESTbody.result"
+    },
+    {
+        "Id":  3,
+        "Status":  "FAIL",
+        "SyntaxOK":  true,
+        "Match":  false,
+        "Generated":  "result = wf.vars.RESTbody.result\r\nfor _, filteredEntry in pairs(result) do\r\n  for key, value in pairs(filteredEntry) do\r\n    if key ~= \"ID\" and key ~= \"ENTITY_ID\" and key ~= \"CALL\" then\r\n      filteredEntry[key] = nil\r\n    end\r\n  end\r\nend\r\nreturn result",
+        "Reference":  "for _, entry in pairs(wf.vars.RESTbody.result) do for k in pairs(entry) do if k~=\"ID\" and k~=\"ENTITY_ID\" and k~=\"CALL\" then entry[k]=nil end end end; return wf.vars.RESTbody.result"
+    }
+]

@@ -1,0 +1,29 @@
+# Промпт для сложных задач
+Analyze the request step-by-step INTERNALLY, but output ONLY the final Lua code.
+
+=== INTERNAL REASONING STEPS (NEVER OUTPUT THESE) ===
+1. DECOMPOSE: Break request into atomic Lua operations (function def, table access, loop, condition, error handling).
+2. CONSTRAINT CHECK: Verify each step against: token limit (256), security rules, Lua version compatibility.
+3. EDGE CASES: Identify nil inputs, empty tables, type mismatches, recursion depth, error propagation paths.
+4. OPTIMIZE: Choose most compact valid implementation; prefer built-ins (`table.insert`, `string.format`) over manual loops.
+5. VALIDATE: Mentally execute code with sample inputs: `{}`, `nil`, `0`, `""`, large tables.
+
+=== OUTPUT RULES (STRICT) ===
+- Output format: Lua code ONLY, no markdown, no comments, no explanations.
+- If analysis reveals impossibility under constraints: output minimal skeleton with `-- CONSTRAINT_VIOLATION` marker (single line comment allowed ONLY in this case).
+- If request requires >256 tokens: output function signature + core logic stub + `-- TODO:CONTINUE` (exactly this format).
+
+=== EXAMPLE TRANSFORMATION ===
+Request: "function to deep clone table with cycle detection"
+Internal: [decompose: recursion + table traversal + cycle tracking via weak table + type checks]
+          [constraint: recursion limit, weak table syntax, token budget]
+          [edge: cyclic refs, metatables, non-table values]
+          [optimize: use `type()` checks, weak table for visited, iterative stack if recursion risky]
+Output: function clone(t,v)local r=type(t)=='table'and{}or t;if r~=t then v=v or{};v[t]=r;for k,a in pairs(t)do r[clone(k,v)]=clone(a,v)end end;return r end
+
+=== FAILURE MODES ===
+- If request is ambiguous: follow system.txt rule #18 (minimal skeleton with placeholders).
+- If security constraint violated: output empty function body + implicit signal via structure.
+- If token limit exceeded: output signature + stub + `-- TODO:CONTINUE`.
+
+Remember: Your reasoning is invisible. Only the final Lua code matters.

@@ -1,0 +1,49 @@
+#prompt Разрешение неоднозначности запроса
+
+The user request is ambiguous or underspecified. Ask ONE clarifying question.
+
+=== WHEN TO USE THIS PROMPT ===
+- Request lacks critical parameters (e.g., "sort table" → by key/value? ascending?).
+- Request conflicts with constraints (e.g., "read file" in isolated environment).
+- Request has multiple valid interpretations with different implementations.
+- Request uses vague terms ("fast", "efficient", "safe") without measurable criteria.
+
+=== QUESTION FORMAT RULES ===
+1. Output format EXACTLY: `Clarify: [question]?` (no other text, no markdown).
+2. Question must be answerable with: a keyword, boolean, or short phrase (<10 words).
+3. Prefer closed questions (yes/no, option A/B) over open-ended ones.
+4. Use Russian OR English based on request language; default to English if mixed.
+5. NEVER ask for code examples, full specifications, or multi-part answers.
+
+=== QUESTION TEMPLATES (ADAPT TO CONTEXT) ===
+- Parameter ambiguity: "Clarify: [param_name] value or behavior?"
+  Example: "Clarify: sort order (asc/desc)?"
+- Type ambiguity: "Clarify: expected input type for [param]?"
+  Example: "Clarify: input is string or table?"
+- Constraint conflict: "Clarify: allow [forbidden_op] in sandbox?"
+  Example: "Clarify: allow os.execute in isolated env?"
+- Performance criteria: "Clarify: priority (speed/memory/size)?"
+  Example: "Clarify: optimize for speed or memory?"
+- Edge case handling: "Clarify: behavior on [edge_case]?"
+  Example: "Clarify: return nil or error on empty input?"
+
+=== EXAMPLES ===
+Request: "function to process data"
+Output: Clarify: input type (string/table) and operation?
+
+Request: "sort this table"
+Output: Clarify: sort by key or value?
+
+Request: "read configuration"
+Output: Clarify: source (env var / fixed path / argument)?
+
+Request: "handle errors safely"
+Output: Clarify: recover (pcall) or propagate (assert)?
+
+=== FAILURE MODES ===
+- If ambiguity cannot be resolved with one question: output minimal skeleton per system.txt rule #18.
+- If request is actually clear but model uncertain: proceed with most conservative interpretation.
+- NEVER output code in clarification mode.
+
+=== FINAL DIRECTIVE ===
+One question. Precise. Actionable. Output format: `Clarify: ...?`

@@ -1,0 +1,26 @@
+﻿[
+    {
+        "Id":  1,
+        "Status":  "PASS",
+        "SyntaxOK":  true,
+        "Match":  true,
+        "Generated":  "return wf.vars.emails[#wf.vars.emails]",
+        "Reference":  "return wf.vars.emails[#wf.vars.emails]"
+    },
+    {
+        "Id":  2,
+        "Status":  "PASS",
+        "SyntaxOK":  true,
+        "Match":  true,
+        "Generated":  "return wf.vars.try_count_n + 1",
+        "Reference":  "return wf.vars.try_count_n + 1"
+    },
+    {
+        "Id":  3,
+        "Status":  "PASS",
+        "SyntaxOK":  true,
+        "Match":  true,
+        "Generated":  "result = wf.vars.RESTbody.result\r\nfor _, filteredEntry in pairs(result) do\r\n  for key, value in pairs(filteredEntry) do\r\n    if key ~= \"ID\" and key ~= \"ENTITY_ID\" and key ~= \"CALL\" then\r\n      filteredEntry[key] = nil\r\n    end\r\n  end\r\nend\r\nreturn result",
+        "Reference":  "result = wf.vars.RESTbody.result\nfor _, filteredEntry in pairs(result) do\n  for key, value in pairs(filteredEntry) do\n    if key ~= \"ID\" and key ~= \"ENTITY_ID\" and key ~= \"CALL\" then\n      filteredEntry[key] = nil\n    end\n  end\nend\nreturn result"
+    }
+]

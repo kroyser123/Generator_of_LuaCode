@@ -1,0 +1,42 @@
+﻿[
+    {
+        "Id":  1,
+        "Status":  "PASS",
+        "SyntaxOK":  true,
+        "Match":  true,
+        "Generated":  "return wf.vars.emails[#wf.vars.emails]",
+        "Reference":  "return wf.vars.emails[#wf.vars.emails]"
+    },
+    {
+        "Id":  2,
+        "Status":  "PASS",
+        "SyntaxOK":  true,
+        "Match":  true,
+        "Generated":  "return wf.vars.try_count_n + 1",
+        "Reference":  "return wf.vars.try_count_n + 1"
+    },
+    {
+        "Id":  3,
+        "Status":  "FAIL",
+        "SyntaxOK":  true,
+        "Match":  false,
+        "Generated":  "local result = wf.vars.RESTbody.result\r\nfor _, entry in ipairs(result) do\r\n  entry.ID = nil\r\n  entry.ENTITY_ID = nil\r\n  entry.CALL = nil\r\nend\r\nreturn result",
+        "Reference":  "result = wf.vars.RESTbody.result\nfor _, filteredEntry in pairs(result) do\n  for key, value in pairs(filteredEntry) do\n    if key ~= \"ID\" and key ~= \"ENTITY_ID\" and key ~= \"CALL\" then\n      filteredEntry[key] = nil\n    end\n  end\nend\nreturn result"
+    },
+    {
+        "Id":  4,
+        "Status":  "FAIL",
+        "SyntaxOK":  false,
+        "Match":  false,
+        "Generated":  "local function safe_sub(str, start, finish)\n local s = string.sub(str, start, math.min(finish, #str))\n return s ~= \"\" and s or \"00\"\nend\nlocal function ensureArray(t)\n if type(t)~=\"table\"then return{t}end\n local isArr=true\n for k in pairs(t)do if type(k)~=\"number\"then isArr=false break end end\n return isArr and t or{t}\nend\nlocal function ensureItems(arr)\n if type(arr)~=\"table\"then return arr end\n for _,obj in ipairs(arr)do if type(obj)==\"table\"and obj.items then obj.items=ensureArray(obj.items)end end\n return arr\nend\nlocal function formatISO8601(date, time)\n local year = safe_sub(date, 1, 4)\n local month = safe_sub(date, 5, 6)\n local day = safe_sub(date, 7, 8)\n local hour = safe_sub(time, 1, 2)\n local minute = safe_sub(time, 3, 4)\n local second = safe_sub(time, 5, 6)\n return string.format(\n \u0027%s-%s-%sT%s",
+        "Reference":  "local function safe_sub(str, start, finish)\n local s = string.sub(str, start, math.min(finish, #str))\n return s ~= \"\" and s or \"00\"\nend\n\nDATUM = wf.vars.json.IDOC.ZCDF_HEAD.DATUM\nTIME = wf.vars.json.IDOC.ZCDF_HEAD.TIME\n\nyear = safe_sub(DATUM, 1, 4)\nmonth = safe_sub(DATUM, 5, 6)\nday = safe_sub(DATUM, 7, 8)\nhour = safe_sub(TIME, 1, 2)\nminute = safe_sub(TIME, 3, 4)\nsecond = safe_sub(TIME, 5, 6)\n\niso_date = string.format(\n \u0027%s-%s-%sT%s:%s:%s.00000Z\u0027,\n year, month, day,\n hour, minute, second\n)\n\nreturn iso_date"
+    },
+    {
+        "Id":  5,
+        "Status":  "FAIL",
+        "SyntaxOK":  true,
+        "Match":  false,
+        "Generated":  "local function ensureItems(arr)\r\n  if type(arr)~=\"table\"then return arr end\r\n  for _,obj in ipairs(arr)do\r\n    if type(obj)==\"table\"and obj.items then\r\n      obj.items=ensureArray(obj.items)\r\n    end\r\n  end\r\n  return arr\r\nend\r\nreturn ensureItems(wf.vars.json.IDOC.ZCDF_HEAD.ZCDF_PACKAGES)",
+        "Reference":  "function ensureArray(t)\n  if type(t) ~= \"table\" then return {t} end\n  local isArray = true\n  for k, v in pairs(t) do\n    if type(k) ~= \"number\" or math.floor(k) ~= k then\n      isArray = false\n      break\n    end\n  end\n  return isArray and t or {t}\nend\n\nfunction ensureAllItemsAreArrays(objectsArray)\n  if type(objectsArray) ~= \"table\" then return objectsArray end\n  for _, obj in ipairs(objectsArray) do\n    if type(obj) == \"table\" and obj.items then\n      obj.items = ensureArray(obj.items)\n    end\n  end\n  return objectsArray\nend\n\nreturn ensureAllItemsAreArrays(wf.vars.json.IDOC.ZCDF_HEAD.ZCDF_PACKAGES)"
+    }
+]

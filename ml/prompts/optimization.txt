@@ -1,0 +1,47 @@
+# prompts оптимезации под токен-лимит
+
+Optimize Lua code for extreme token efficiency (<256 tokens total).
+
+=== OPTIMIZATION PRIORITIES (IN ORDER) ===
+1. CORRECTNESS: Code must be functionally valid for core requirement.
+2. CONCISENESS: Remove all non-essential characters: whitespace, comments, redundant keywords.
+3. BUILT-INS: Prefer Lua standard library (`table.insert`, `string.format`) over manual implementations.
+4. ONE-LINERS: Use ternary-like patterns: `cond and val1 or val2` (with nil-safety awareness).
+5. SHORT NAMES: Use single-letter locals (`t`, `k`, `v`, `i`, `r`) when scope is clear.
+
+=== TOKEN-SAVING TECHNIQUES ===
+- Remove spaces around operators: `a+b` not `a + b` (except where required for parsing).
+- Combine statements with `;`: `local a=1;local b=2` → `local a,b=1,2`.
+- Use table constructors efficiently: `{a=1,b=2}` not `{["a"]=1,["b"]=2}`.
+- Avoid verbose error handling: `assert(cond)` not `if not cond then error("msg") end`.
+- Use short-circuit evaluation: `t and t[k] or default` (with nil/false distinction awareness).
+
+=== LUA-SPECIFIC OPTIMIZATIONS ===
+- Table iteration: `for k,v in pairs(t)do` (no space after `do`).
+- Function definition: `function f(a)return a end` (no spaces around `=` in returns).
+- Conditional: `if a>b then return a else return b end` → `return a>b and a or b`.
+- Loop: `for i=1,#t do` preferred over `ipairs` when index needed.
+
+=== TOKEN BUDGET ALLOCATION ===
+- Function signature: ~20-40 tokens
+- Core logic: ~100-150 tokens
+- Error handling: ~20-40 tokens (only if critical)
+- Reserve ~20 tokens buffer for parser overhead
+
+=== IF OPTIMIZATION FAILS ===
+- If core logic cannot fit: output signature + minimal stub + `-- TODO:CONTINUE`.
+- If optimization breaks correctness: prioritize correctness, accept token overflow (agent loop will handle).
+- If request inherently requires >256 tokens: output first critical segment only.
+
+=== EXAMPLE OPTIMIZATIONS ===
+Before: function add(a, b) local result = a + b return result end
+After: function add(a,b)return a+b end
+
+Before: function get(t,key)if t and t[key] then return t[key] else return nil end end
+After: function get(t,k)return t and t[k]end
+
+Before: for index,value in ipairs(array) do if value > threshold then table.insert(result, value) end end
+After: for i,v in ipairs(t)do if v>th then r[#r+1]=v end end
+
+=== FINAL DIRECTIVE ===
+Every token counts. Optimize ruthlessly. Output only the most compact valid code.

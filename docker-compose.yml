@@ -1,27 +1,17 @@
 version: '3.8'
-
 services:
   ollama:
-    build:
-      context: ./ml/ollama
-      dockerfile: Dockerfile
+    build: ./ml/ollama
     container_name: ollama
     volumes:
       - ollama_models:/root/.ollama
-      - type: bind
-        source: ./ml/ollama
-        target: /app/ollama
-        read_only: true
-      - type: bind
-        source: ./ml/ollama/logs
-        target: /var/log
-        read_only: false
+      - ./ml/ollama:/app/ollama:ro
+      - ./ml/ollama/logs:/var/log
     environment:
-        - OLLAMA_KEEP_ALIVE=24h
-        - OLLAMA_HOST=0.0.0.0
-        - OLLAMA_NUM_PARALLEL=1
-        - OLLAMA_MAX_LOADED_MODELS=1
-        - OLLAMA_NO_UPGRADE=1
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_NUM_PARALLEL=1
+      - OLLAMA_MAX_LOADED_MODELS=1
     deploy:
       resources:
         reservations:
@@ -31,14 +21,59 @@ services:
               capabilities: [gpu]
     ports:
       - "11434:11434"
-    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - agent-network
+
+  backend:
+    build: ./backend
+    container_name: backend
+    ports:
+      - "8080:8080"
+    environment:
+      - OLLAMA_ENDPOINT=http://ollama:11434/api/chat
+      - MODEL_NAME=mws-agent:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    networks:
+      - agent-network
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: postgres
+    environment:
+      - POSTGRES_USER=agent
+      - POSTGRES_PASSWORD=secure_password
+      - POSTGRES_DB=agent_db
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - agent-network
+
+  embeddings:
+    build: ./ml/embeddings
+    container_name: embeddings
+    ports:
+      - "8081:8081"
+    environment:
+      - MODEL_NAME=all-MiniLM-L6-v2
+    depends_on:
+      - postgres
     networks:
       - agent-network
 
 volumes:
   ollama_models:
+  pg_data:
 
 networks:
   agent-network:
     driver: bridge
-    # internal: true  # Необходимо будет раскоментировать при финальной сдачи закроет формальный пункт данные не покидают контур.
+    # internal: true  # Uncomment for air-gap demo

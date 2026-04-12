@@ -1,0 +1,50 @@
+﻿[
+    {
+        "Id":  1,
+        "Status":  "PASS",
+        "SyntaxOK":  true,
+        "Match":  true,
+        "Generated":  "return wf.vars.emails[#wf.vars.emails]",
+        "Reference":  "return wf.vars.emails[#wf.vars.emails]"
+    },
+    {
+        "Id":  2,
+        "Status":  "PASS",
+        "SyntaxOK":  true,
+        "Match":  true,
+        "Generated":  "return wf.vars.try_count_n + 1",
+        "Reference":  "return wf.vars.try_count_n + 1"
+    },
+    {
+        "Id":  3,
+        "Status":  "PASS",
+        "SyntaxOK":  true,
+        "Match":  true,
+        "Generated":  "local result = wf.vars.RESTbody.result\r\nfor _, entry in ipairs(result) do\r\n  for key in pairs(entry) do\r\n    if key ~= \"ID\" and key ~= \"ENTITY_ID\" and key ~= \"CALL\" then\r\n      entry[key] = nil\r\n    end\r\n  end\r\nend\r\nreturn result",
+        "Reference":  "local result = wf.vars.RESTbody.result\nfor _, entry in ipairs(result) do\n  for key in pairs(entry) do\n    if key ~= \"ID\" and key ~= \"ENTITY_ID\" and key ~= \"CALL\" then\n      entry[key] = nil\n    end\n  end\nend\nreturn result"
+    },
+    {
+        "Id":  4,
+        "Status":  "PASS",
+        "SyntaxOK":  true,
+        "Match":  true,
+        "Generated":  "local DATUM = wf.vars.json.IDOC.ZCDF_HEAD.DATUM\nlocal TIME = wf.vars.json.IDOC.ZCDF_HEAD.TIME\nlocal function safe_sub(str, start, finish)\n local s = string.sub(str, start, math.min(finish, #str))\n return s ~= \"\" and s or \"00\"\nend\nyear = safe_sub(DATUM, 1, 4)\nmonth = safe_sub(DATUM, 5, 6)\nday = safe_sub(DATUM, 7, 8)\nhour = safe_sub(TIME, 1, 2)\nminute = safe_sub(TIME, 3, 4)\nsecond = safe_sub(TIME, 5, 6)\nlocal iso_date = string.format(\n \u0027%s-%s-%sT%s:%s:%s.00000Z\u0027,\n year, month, day,\n hour, minute, second\n)\nreturn iso_date",
+        "Reference":  "local DATUM = wf.vars.json.IDOC.ZCDF_HEAD.DATUM\nlocal TIME = wf.vars.json.IDOC.ZCDF_HEAD.TIME\nlocal function safe_sub(str, start, finish)\n local s = string.sub(str, start, math.min(finish, #str))\n return s ~= \"\" and s or \"00\"\nend\nyear = safe_sub(DATUM, 1, 4)\nmonth = safe_sub(DATUM, 5, 6)\nday = safe_sub(DATUM, 7, 8)\nhour = safe_sub(TIME, 1, 2)\nminute = safe_sub(TIME, 3, 4)\nsecond = safe_sub(TIME, 5, 6)\nlocal iso_date = string.format(\n \u0027%s-%s-%sT%s:%s:%s.00000Z\u0027,\n year, month, day,\n hour, minute, second\n)\nreturn iso_date"
+    },
+    {
+        "Id":  5,
+        "Status":  "PASS",
+        "SyntaxOK":  true,
+        "Match":  true,
+        "Generated":  "local pkgs = wf.vars.json.IDOC.ZCDF_HEAD.ZCDF_PACKAGES\r\nif type(pkgs) == \"table\" then\r\n  for _, p in ipairs(pkgs) do\r\n    if p.items then\r\n      if type(p.items) ~= \"table\" then\r\n        p.items = {p.items}\r\n      else\r\n        local isArr = true\r\n        for k in pairs(p.items) do\r\n          if type(k) ~= \"number\" then\r\n            isArr = false\r\n            break\r\n          end\r\n        end\r\n        if not isArr then\r\n          p.items = {p.items}\r\n        end\r\n      end\r\n    end\r\n  end\r\nend\r\nreturn pkgs",
+        "Reference":  "local pkgs = wf.vars.json.IDOC.ZCDF_HEAD.ZCDF_PACKAGES\nif type(pkgs) == \"table\" then\n  for _, p in ipairs(pkgs) do\n    if p.items then\n      if type(p.items) ~= \"table\" then\n        p.items = {p.items}\n      else\n        local isArr = true\n        for k in pairs(p.items) do\n          if type(k) ~= \"number\" then\n            isArr = false\n            break\n          end\n        end\n        if not isArr then\n          p.items = {p.items}\n        end\n      end\n    end\n  end\nend\nreturn pkgs"
+    },
+    {
+        "Id":  6,
+        "Status":  "PASS",
+        "SyntaxOK":  true,
+        "Match":  true,
+        "Generated":  "local result = _utils.array.new()\r\nlocal items = wf.vars.parsedCsv\r\nfor _, item in ipairs(items) do\r\n  if (item.Discount ~= \"\" and item.Discount ~= nil) or (item.Markdown ~= \"\" and item.Markdown ~= nil) then\r\n    table.insert(result, item)\r\n  end\r\nend\r\nreturn result",
+        "Reference":  "local result = _utils.array.new()\nlocal items = wf.vars.parsedCsv\nfor _, item in ipairs(items) do\n  if (item.Discount ~= \"\" and item.Discount ~= nil) or (item.Markdown ~= \"\" and item.Markdown ~= nil) then\n    table.insert(result, item)\n  end\nend\nreturn result"
+    }
+]

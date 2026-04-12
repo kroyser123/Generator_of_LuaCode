@@ -1,0 +1,34 @@
+﻿[
+    {
+        "Id":  1,
+        "Status":  "PASS",
+        "SyntaxOK":  true,
+        "Match":  true,
+        "Generated":  "return wf.vars.emails[#wf.vars.emails]",
+        "Reference":  "return wf.vars.emails[#wf.vars.emails]"
+    },
+    {
+        "Id":  2,
+        "Status":  "PASS",
+        "SyntaxOK":  true,
+        "Match":  true,
+        "Generated":  "return wf.vars.try_count_n + 1",
+        "Reference":  "return wf.vars.try_count_n + 1"
+    },
+    {
+        "Id":  3,
+        "Status":  "FAIL",
+        "SyntaxOK":  true,
+        "Match":  false,
+        "Generated":  "return wf.vars.RESTbody.result",
+        "Reference":  "result = wf.vars.RESTbody.result\nfor _, filteredEntry in pairs(result) do\n  for key, value in pairs(filteredEntry) do\n    if key ~= \"ID\" and key ~= \"ENTITY_ID\" and key ~= \"CALL\" then\n      filteredEntry[key] = nil\n    end\n  end\nend\nreturn result"
+    },
+    {
+        "Id":  4,
+        "Status":  "FAIL",
+        "SyntaxOK":  true,
+        "Match":  false,
+        "Generated":  "local function safe_sub(str, start, finish)\n  local s = string.sub(str, start, math.min(finish, #str))\n  return s ~= \"\" and s or \"00\"\nend\n\nlocal DATUM = wf.vars.json.IDOC.ZCDF_HEAD.DATUM\nlocal TIME = wf.vars.json.IDOC.ZCDF_HEAD.TIME\n\nlocal year = safe_sub(DATUM, 1, 4)\nlocal month = safe_sub(DATUM, 5, 6)\nlocal day = safe_sub(DATUM, 7, 8)\nlocal hour = safe_sub(TIME, 1, 2)\nlocal minute = safe_sub(TIME, 3, 4)\nlocal second = safe_sub(TIME, 5, 6)\n\nlocal iso_date = string.format(\n  \u0027%s-%s-%sT%s:%s:%s.00000Z\u0027,\n  year, month, day,\n  hour, minute, second\n)\n\nreturn iso_date",
+        "Reference":  "local function safe_sub(str, start, finish)\n local s = string.sub(str, start, math.min(finish, #str))\n return s ~= \"\" and s or \"00\"\nend\n\nDATUM = wf.vars.json.IDOC.ZCDF_HEAD.DATUM\nTIME = wf.vars.json.IDOC.ZCDF_HEAD.TIME\n\nyear = safe_sub(DATUM, 1, 4)\nmonth = safe_sub(DATUM, 5, 6)\nday = safe_sub(DATUM, 7, 8)\nhour = safe_sub(TIME, 1, 2)\nminute = safe_sub(TIME, 3, 4)\nsecond = safe_sub(TIME, 5, 6)\n\niso_date = string.format(\n \u0027%s-%s-%sT%s:%s:%s.00000Z\u0027,\n year, month, day,\n hour, minute, second\n)\n\nreturn iso_date"
+    }
+]
