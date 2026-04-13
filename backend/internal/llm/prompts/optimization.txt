@@ -1,4 +1,4 @@
-# prompts оптимезации под токен-лимит
+# prompts оптимизации под токен-лимит
 
 Optimize Lua code for extreme token efficiency (<256 tokens total).
 

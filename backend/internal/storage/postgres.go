@@ -162,13 +162,13 @@ func (r *PostgresRepository) GetStats(ctx context.Context, sessionID string) (*S
 	var avgTime float64
 
 	query := `
-    SELECT 
-        COUNT(*) as total,
-        SUM(CASE WHEN success THEN 1 ELSE 0 END) as success_count,
-        COALESCE(AVG(execution_time_ms), 0) as avg_time
-    FROM histories
-    WHERE session_id = $1
-    `
+SELECT 
+    COUNT(*) as total,
+    COALESCE(SUM(CASE WHEN success THEN 1 ELSE 0 END), 0) as success_count,
+    COALESCE(AVG(execution_time_ms), 0) as avg_time
+FROM histories
+WHERE session_id = $1
+`
 	err := r.db.QueryRowContext(ctx, query, sessionID).Scan(&total, &successCount, &avgTime)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get stats: %w", err)

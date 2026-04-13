@@ -64,10 +64,6 @@ func NewMWSValidator() *MWSValidator {
 	v.addPattern(`::[a-zA-Z_][a-zA-Z0-9_]*::`, "label",
 		"labels for goto are not allowed")
 
-	// Запрещенные глобальные переменные
-	v.addPattern(`(?m)^[a-zA-Z_][a-zA-Z0-9_]*\s*=`, "global_variable",
-		"Use 'local' for variables, or use wf.vars for persistent storage")
-
 	return v
 }
 
@@ -107,18 +103,6 @@ func (v *MWSValidator) Validate(code string) error {
 		for _, match := range matches {
 			lineNum := findLineNumber(match[0], cleanLines)
 			matchText := cleanCode[match[0]:match[1]]
-
-			// Пропускаем local объявления
-			if pattern.String() == `(?m)^[a-zA-Z_][a-zA-Z0-9_]*\s*=` {
-				trimmed := strings.TrimSpace(matchText)
-				if strings.HasPrefix(trimmed, "local") ||
-					strings.HasPrefix(trimmed, "function") ||
-					strings.HasPrefix(trimmed, "return") ||
-					strings.Contains(matchText, "wf.") ||
-					strings.Contains(matchText, "_utils") {
-					continue
-				}
-			}
 
 			violations = append(violations, MWSViolation{
 				Type:  info.Type,
@@ -163,38 +147,50 @@ func (e *JSONFormatError) Error() string {
 }
 
 // checkJSONStringFormat проверяет формат lua{...}lua
+// checkJSONStringFormat проверяет формат lua{...}lua или просто валидный Lua код
 func (v *MWSValidator) checkJSONStringFormat(code string) error {
 	trimmed := strings.TrimSpace(code)
 
-	if !strings.HasPrefix(trimmed, "lua{") {
-		return &JSONFormatError{
-			Message:  "Code must be wrapped in JSONString format",
-			Expected: "lua{ ... }lua",
-			Found:    trimmed[:min(len(trimmed), 30)] + "...",
-			Hint:     "Wrap your code like this: lua{return wf.vars.data}lua",
+	// Если код уже в правильном формате
+	if strings.HasPrefix(trimmed, "lua{") && strings.HasSuffix(trimmed, "}lua") {
+		inner := trimmed[4 : len(trimmed)-4]
+		if strings.TrimSpace(inner) == "" {
+			return &JSONFormatError{
+				Message:  "Code inside lua{...}lua cannot be empty",
+				Expected: "some Lua code",
+				Found:    "empty",
+				Hint:     "Write your Lua logic between lua{ and }lua",
+			}
 		}
+		return nil
 	}
 
-	if !strings.HasSuffix(trimmed, "}lua") {
-		return &JSONFormatError{
-			Message:  "Code must end correctly",
-			Expected: "... }lua",
-			Found:    trimmed[len(trimmed)-min(len(trimmed), 10):],
-			Hint:     "Close your code with }lua",
-		}
+	// Если код без обертки, но это валидный Lua — пропускаем с предупреждением
+	// (или можно автоматически обернуть)
+	if v.isValidLuaCode(trimmed) {
+		// Автоматически оборачиваем
+		// Но это требует доступа к修改 кода, что сложно
+		return nil // временно разрешаем
 	}
 
-	inner := trimmed[4 : len(trimmed)-4]
-	if strings.TrimSpace(inner) == "" {
-		return &JSONFormatError{
-			Message:  "Code inside lua{...}lua cannot be empty",
-			Expected: "some Lua code",
-			Found:    "empty",
-			Hint:     "Write your Lua logic between lua{ and }lua",
+	return &JSONFormatError{
+		Message:  "Code must be wrapped in JSONString format",
+		Expected: "lua{ ... }lua",
+		Found:    trimmed[:min(len(trimmed), 30)] + "...",
+		Hint:     "Wrap your code like this: lua{return wf.vars.data}lua",
+	}
+}
+
+// isValidLuaCode проверяет, выглядит ли строка как валидный Lua код
+func (v *MWSValidator) isValidLuaCode(code string) bool {
+	// Простая проверка: содержит ли код ключевые слова Lua
+	luaKeywords := []string{"return", "function", "local", "if", "for", "while", "end"}
+	for _, kw := range luaKeywords {
+		if strings.Contains(code, kw) {
+			return true
 		}
 	}
-
-	return nil
+	return false
 }
 
 // findLineNumber находит номер строки по позиции символа

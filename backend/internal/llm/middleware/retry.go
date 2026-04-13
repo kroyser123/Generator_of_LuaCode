@@ -17,7 +17,7 @@ type RetryConfig struct {
 // DefaultRetryConfig — конфигурация по умолчанию
 func DefaultRetryConfig() RetryConfig {
 	return RetryConfig{
-		MaxAttempts:  3,
+		MaxAttempts:  2,
 		InitialDelay: 500 * time.Millisecond,
 		MaxDelay:     5 * time.Second,
 		Multiplier:   2.0,

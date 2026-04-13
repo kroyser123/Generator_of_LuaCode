@@ -2,8 +2,8 @@ package api
 
 import (
 	"encoding/json"
-	"mega-agent/backend/internal/agent"
-	"mega-agent/backend/internal/storage"
+	"mega-agent/internal/agent"
+	"mega-agent/internal/storage"
 	"net/http"
 	"strconv"
 )

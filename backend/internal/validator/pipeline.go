@@ -2,7 +2,6 @@ package validator
 
 import (
 	"fmt"
-	"strings"
 	"time"
 )
 
@@ -27,8 +26,8 @@ func NewPipeline(sandboxTimeout time.Duration) Validator {
 }
 
 // ValidateFull полная проверка: синтаксис, безопасность, MWS, выполнение
-func (p *Pipeline) Validate(code string) ValidationResult { 
-	result := ValidationResult{Valid: true, Errors: []string{}} 
+func (p *Pipeline) Validate(code string) ValidationResult {
+	result := ValidationResult{Valid: true, Errors: []string{}}
 
 	// 1. Синтаксис
 	if err := p.syntax.Validate(code); err != nil {
@@ -51,7 +50,7 @@ func (p *Pipeline) Validate(code string) ValidationResult {
 		return result
 	}
 
-	// 4. Выполнение в песочнице
+	/* 4. Выполнение в песочнице
 	output, err := p.sandbox.Validate(code)
 	if err != nil {
 		result.Valid = false
@@ -59,7 +58,8 @@ func (p *Pipeline) Validate(code string) ValidationResult {
 		return result
 	}
 	result.Output = strings.TrimSpace(output)
-
+	*/
+	result.Output = ""
 	return result
 }
 

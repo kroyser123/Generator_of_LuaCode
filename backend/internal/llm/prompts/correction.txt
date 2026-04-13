@@ -1,0 +1,8 @@
+#prompt итерации исправления по ошибке валидатора
+
+Previous Lua code failed validation. Fix it and output ONLY the corrected version.
+
+=== INPUT FORMAT (PROVIDED BY AGENT) ===
+ERROR: {error_type}: {error_message}
+CODE: {previous_code_snippet}
+CONTEXT: {original_request}

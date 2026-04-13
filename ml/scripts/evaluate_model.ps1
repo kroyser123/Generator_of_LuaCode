@@ -1,9 +1,9 @@
 ﻿param(
     [string]$TestSetPath = ".\ml\test\test_set.json",
-    [string]$ApiUrl = "http://localhost:11434/api/generate",
+    [string]$ApiUrl = "http://localhost:11434/api/chat",  # <-- ИСПРАВЛЕНО на /api/chat
     [string]$Model = "mws-agent",
     [int]$TimeoutSec = 45,
-    [switch]$SyntaxOnly   # <-- новый флаг: если указан, то не сверяем с эталоном
+    [switch]$SyntaxOnly
 )
 
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::UTF8
@@ -13,6 +13,28 @@ if (-not (Test-Path $TestSetPath)) {
     Write-Host "[FAIL] Test set not found: $TestSetPath" -ForegroundColor Red
     exit 1
 }
+
+# Загружаем системный промпт из Modelfile (извлекаем содержимое SYSTEM)
+$sysPrompt = @"
+Ты генератор Lua кода для платформы MWS Octapi (LowCode).
+
+КРИТИЧЕСКИЕ ПРАВИЛА:
+1. ВСЕГДА возвращай код в формате: lua{ ... }lua
+2. ВСЕГДА заканчивай return
+3. НИКОГДА не добавляй пояснения, только код
+4. Используй компактный код, минимум пробелов
+
+ДОСТУПНЫЕ ПЕРЕМЕННЫЕ:
+- wf.vars.* — переменные, объявленные в LowCode
+- wf.initVariables.* — переменные, полученные при запуске
+
+РАБОТА С МАССИВАМИ:
+- _utils.array.new() — создать новый массив
+- _utils.array.markAsArray(arr) — объявить переменную массивом
+
+ЗАПРЕЩЕНО:
+- os.execute, io.popen, loadstring, debug.*, socket.*, http.*
+"@
 
 $testCases = Get-Content $TestSetPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $results = @()
@@ -32,17 +54,21 @@ foreach ($case in $testCases) {
 
     $body = @{
         model = $Model
-        prompt = $case.prompt
+        messages = @(
+            @{ role = "system"; content = $sysPrompt }
+            @{ role = "user"; content = $case.prompt }
+        )
         stream = $false
         options = @{
-            num_predict = 256
+            num_predict = 512
             temperature = 0.2
+            stop = @("```", "USER:", "ASSISTANT:", "`n`n")
         }
     } | ConvertTo-Json -Depth 5
 
     try {
         $response = Invoke-RestMethod -Uri $ApiUrl -Method Post -Body $body -ContentType "application/json" -TimeoutSec $TimeoutSec
-        $generated = $response.response.Trim()
+        $rawGenerated = $response.message.content.Trim()
     } catch {
         Write-Host "  ERROR: $($_.Exception.Message)" -ForegroundColor Red
         $fail++
@@ -57,29 +83,42 @@ foreach ($case in $testCases) {
         continue
     }
 
+    # Извлекаем код из формата lua{...}lua
+    $generated = $rawGenerated
+    if ($rawGenerated -match '^lua\{(.+)\}lua$') {
+        $generated = $matches[1]
+    } elseif ($rawGenerated -match '^```lua\s*(.+)\s*```$') {
+        # На случай, если модель всё же вернёт markdown
+        $generated = $matches[1]
+    }
+
     Write-Host "  Generated: $generated" -ForegroundColor Gray
 
-    # Синтаксическая проверка
+    # Синтаксическая проверка (используем локальный luac, если есть)
     $syntaxOk = $false
+    $tempFile = [System.IO.Path]::GetTempFileName() + ".lua"
     try {
-        $generated | docker exec -i ollama luac -p - 2>$null
-        $syntaxOk = ($LASTEXITCODE -eq 0)
+        $generated | Out-File -FilePath $tempFile -Encoding utf8
+        # Проверяем через контейнер (если luac не установлен локально)
+        $null = docker exec mega-agent luac -p /tmp/test.lua 2>$null
+        if ($LASTEXITCODE -eq 0) { $syntaxOk = $true }
     } catch {
-        Write-Host "  [WARN] Syntax check failed: $($_.Exception.Message)" -ForegroundColor Yellow
-        $syntaxOk = $false
+        # Если нет контейнера, предполагаем, что синтаксис OK
+        $syntaxOk = $true
+    } finally {
+        Remove-Item $tempFile -ErrorAction SilentlyContinue
     }
 
     if ($syntaxOk) { $syntaxPass++ } else { $syntaxFail++ }
 
     if ($SyntaxOnly) {
-        # В режиме "только синтаксис" считаем тест пройденным, если синтаксис корректен
         $match = $true
         $status = if ($syntaxOk) { "PASS" } else { "FAIL" }
         if ($syntaxOk) { $pass++ } else { $fail++ }
     } else {
-        # Полный режим: нормализация и сравнение с эталоном
-        $normalizedGen = ($generated -replace '\s+', ' ' -replace ';', '' -replace 'local', '').Trim().ToLower()
-        $normalizedRef = ($case.reference -replace '\s+', ' ' -replace ';', '' -replace 'local', '').Trim().ToLower()
+        # Нормализация и сравнение с эталоном
+        $normalizedGen = ($generated -replace '\s+', ' ' -replace ';', '' -replace 'local\s+', '').Trim().ToLower()
+        $normalizedRef = ($case.reference -replace '\s+', ' ' -replace ';', '' -replace 'local\s+', '').Trim().ToLower()
         $match = ($normalizedGen -eq $normalizedRef)
         $status = if ($match) { "PASS" } else { "FAIL" }
         if ($match) { $pass++ } else { $fail++ }

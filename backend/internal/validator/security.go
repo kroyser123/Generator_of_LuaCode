@@ -69,10 +69,35 @@ func NewSecurityValidator() *SecurityValidator {
 		// Доступ к отладке
 		{`debug\.`, "debug.* - debug access"},
 
+		// Сетевые вызовы
+		{`socket\.`, "socket.* - network access"},
+		{`http\.`, "http.* - HTTP client"},
+		{`ftp\.`, "ftp.* - FTP client"},
+
+		// Raw доступ
+		{`rawget\s*\(`, "rawget() - bypass metatable"},
+		{`rawset\s*\(`, "rawset() - bypass metatable"},
+		{`rawlen\s*\(`, "rawlen() - raw length access"},
+		{`rawequal\s*\(`, "rawequal() - raw equality"},
+
+		// Package манипуляции
+		{`package\.loadlib\s*\(`, "package.loadlib() - load C library"},
+		{`package\.cpath`, "package.cpath - modify C library path"},
+		{`package\.path`, "package.path - modify Lua module path"},
+
+		// Metatable манипуляции
+		{`getmetatable\s*\(\s*_G`, "getmetatable(_G) - access global metatable"},
+		{`setmetatable\s*\(\s*_G`, "setmetatable(_G) - modify global metatable"},
+
 		// Альтернативные способы вызова (через квадратные скобки)
 		{`os\[['"]execute['"]\]`, "os['execute']() - shell command"},
 		{`io\[['"]open['"]\]`, "io['open']() - file access"},
 		{`_G\[['"]os['"]\]`, "_G['os'] - os access"},
+
+		// ===== ДОБАВЛЕНО: JsonPath =====
+		{`\$\.\w+`, "JsonPath - use direct access wf.vars.field"},
+		{`\$\[.*?\]`, "JsonPath - use direct access wf.vars.array[1]"},
+		{`\$\{.*?\}`, "JsonPath - use direct access to wf.vars"},
 	}
 
 	v := &SecurityValidator{
@@ -90,7 +115,6 @@ func NewSecurityValidator() *SecurityValidator {
 }
 
 // Validate проверяет код на опасные функции
-// Возвращает nil если безопасно, иначе SecurityError с деталями
 func (v *SecurityValidator) Validate(code string) error {
 	var violations []SecurityViolation
 	lines := strings.Split(code, "\n")
@@ -105,7 +129,7 @@ func (v *SecurityValidator) Validate(code string) error {
 						lineNum = i + 1
 						break
 					}
-					charPos += len(line) + 1 
+					charPos += len(line) + 1
 				}
 
 				matchText := code[match[0]:match[1]]
