@@ -16,6 +16,27 @@ import (
 	"time"
 )
 
+func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Устанавливаем заголовки ДО обработки запроса
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Max-Age", "86400")
+
+		// Логируем для отладки
+		log.Printf("[CORS] Method=%s, Path=%s", r.Method, r.URL.Path)
+
+		// Обрабатываем preflight (OPTIONS) запрос
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		// Вызываем следующий handler
+		next(w, r)
+	}
+}
 func main() {
 	// Конфигурация из переменных окружения
 	llmEndpoint := getEnv("OLLAMA_ENDPOINT", "http://localhost:11434")
@@ -68,14 +89,35 @@ func main() {
 
 	// 6. HTTP Server
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /generate", handler.GenerateHandler)
-	mux.HandleFunc("POST /feedback", handler.FeedbackHandler)
-	mux.HandleFunc("GET /history", handler.HistoryHandler)
-	mux.HandleFunc("GET /stats", handler.StatsHandler)
+
+	// Убираем метод из пути (разрешаем любые методы)
+	mux.HandleFunc("/generate", handler.GenerateHandler)
+	mux.HandleFunc("/history", handler.HistoryHandler)
+	mux.HandleFunc("/stats", handler.StatsHandler)
+	mux.HandleFunc("/feedback", handler.FeedbackHandler)
+
+	// CORS обёртка
+	corsHandler := func(w http.ResponseWriter, r *http.Request) {
+		// Устанавливаем CORS заголовки для ВСЕХ ответов
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+		// Логируем
+		log.Printf("[CORS] Method=%s, Path=%s", r.Method, r.URL.Path)
+
+		// Для OPTIONS сразу возвращаем OK
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		mux.ServeHTTP(w, r)
+	}
 
 	server := &http.Server{
 		Addr:    serverPort,
-		Handler: mux,
+		Handler: http.HandlerFunc(corsHandler),
 	}
 
 	go func() {

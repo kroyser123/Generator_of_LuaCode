@@ -35,3 +35,4 @@
 
 Задача: "отфильтровать массив по условию"
 Ответ: lua{local result = {}; for _, v in ipairs(wf.vars.data) do if v > 0 then table.insert(result, v) end end; return result}lua
+
