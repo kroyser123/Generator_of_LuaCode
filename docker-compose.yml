@@ -1,10 +1,11 @@
 services:
   mega-agent:
-    build: .  # ← использует ваш Dockerfile (который на базе ollama/ollama)
+    build: .
     container_name: mega-agent
     ports:
       - '8080:8080'
       - '11434:11434'
+    runtime: nvidia
     environment:
       - OLLAMA_HOST=0.0.0.0
       - OLLAMA_ENDPOINT=http://localhost:11434
@@ -12,12 +13,25 @@ services:
       - DB_CONN_STRING=postgres://postgres:postgres@postgres:5432/mega_agent?sslmode=disable
       - SESSION_ID=default-session
       - SERVER_PORT=:8080
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
     depends_on:
       postgres:
         condition: service_started
     volumes:
       - ollama_models:/root/.ollama
       - ./ml/ollama:/app/ollama:ro
+    restart: unless-stopped
+
+  frontend:
+    image: python:3.11-alpine
+    container_name: mega-agent-frontend
+    ports:
+      - '80:8000'
+    command: python -m http.server 8000
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
     restart: unless-stopped
 
   postgres:
