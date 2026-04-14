@@ -1,13 +1,30 @@
 services:
+  ollama: # ← ДОБАВИТЬ ЭТОТ СЕРВИС
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - '11434:11434'
+    volumes:
+      - ollama_models:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    restart: unless-stopped
+    # healthcheck для ожидания готовности
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:11434/api/tags']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   mega-agent:
     build: .
     container_name: mega-agent
     ports:
       - '8080:8080'
-      - '11434:11434'
+      # - '11434:11434'  # ← УБРАТЬ (ollama уже пробрасывает свой порт)
     environment:
-      - OLLAMA_HOST=0.0.0.0
-      - OLLAMA_ENDPOINT=http://localhost:11434
+      - OLLAMA_HOST=ollama # ← ИЗМЕНИТЬ: теперь это имя сервиса
+      - OLLAMA_ENDPOINT=http://ollama:11434 # ← ИЗМЕНИТЬ
       - MODEL_NAME=mws-agent:latest
       - DB_CONN_STRING=postgres://postgres:postgres@postgres:5432/mega_agent?sslmode=disable
       - SESSION_ID=default-session
@@ -15,9 +32,10 @@ services:
     depends_on:
       postgres:
         condition: service_started
+      ollama: # ← ДОБАВИТЬ зависимость
+        condition: service_healthy
     volumes:
-      - ollama_models:/root/.ollama # ← БЕЗ :ro!
-      - ./ml/ollama:/app/ollama:ro # ← Modelfile можно read-only
+      - ./ml/ollama:/app/ollama:ro
     restart: unless-stopped
 
   postgres:
