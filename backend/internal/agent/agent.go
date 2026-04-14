@@ -74,7 +74,7 @@ func (a *agent) cleanCode(raw string) string {
 
 func (a *agent) Generate(ctx context.Context, prompt string) (*Result, error) {
 	start := time.Now()
-
+	
 	var lastCode string
 	var lastError string
 
