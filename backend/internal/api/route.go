@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"mega-agent/internal/agent"
 	"mega-agent/internal/storage"
 	"net/http"
@@ -41,11 +42,13 @@ func (h *Handler) GenerateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := GenerateResponse{
-		Code:        result.Code,
-		Explanation: result.Explanation,
-		Plan:        result.Plan,
-		Output:      result.Output,
-		Success:     result.Success,
+		Code:               result.Code,
+		Explanation:        result.Explanation,
+		Plan:               result.Plan,
+		Output:             result.Output,
+		Success:            result.Success,
+		NeedsClarification: result.NeedsClarification, // ← добавить
+		Question:           result.Question,           // ← добавить
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -54,7 +57,7 @@ func (h *Handler) GenerateHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // HistoryHandler — GET /history
-func (h *Handler) HistoryHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Fantomas(w http.ResponseWriter, r *http.Request) {
 	sessionID := r.URL.Query().Get("session_id")
 	limitStr := r.URL.Query().Get("limit")
 
@@ -136,13 +139,26 @@ func (h *Handler) FeedbackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: реализовать логику исправления
-	// Пока возвращаем заглушку
-	resp := map[string]interface{}{
-		"code":              "-- Исправленный код\nfunction main()\n    print('fixed')\nend",
-		"explanation":       "Код исправлен на основе фидбека",
-		"success":           true,
-		"execution_time_ms": 500,
+	// ВАЖНО: используем feedback как новый prompt для генерации
+	// Добавляем контекст предыдущего кода
+	enhancedPrompt := req.Feedback
+	if req.PreviousCode != "" {
+		enhancedPrompt = fmt.Sprintf("Предыдущий код:\n%s\n\nЗапрос на исправление:\n%s", req.PreviousCode, req.Feedback)
+	}
+
+	// Генерируем новый код на основе feedback
+	result, err := h.agent.Generate(r.Context(), enhancedPrompt)
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "generation failed", err.Error())
+		return
+	}
+
+	resp := GenerateResponse{
+		Code:        result.Code,
+		Explanation: result.Explanation,
+		Plan:        result.Plan,
+		Output:      result.Output,
+		Success:     result.Success,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

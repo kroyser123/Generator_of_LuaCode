@@ -22,7 +22,7 @@ func NewOllamaClient(endpoint, model string) *OllamaClient {
 	return &OllamaClient{
 		endpoint: endpoint,
 		model:    model,
-		http:     &http.Client{Timeout: 60 * time.Second},
+		http:     &http.Client{Timeout: 120 * time.Second},
 	}
 }
 

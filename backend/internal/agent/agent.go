@@ -24,11 +24,13 @@ type agent struct {
 }
 
 type Result struct {
-	Code        string   `json:"code"`
-	Explanation string   `json:"explanation"`
-	Plan        []string `json:"plan"`
-	Output      string   `json:"output"`
-	Success     bool     `json:"success"`
+	Code               string   `json:"code"`
+	Explanation        string   `json:"explanation"`
+	Plan               []string `json:"plan"`
+	Output             string   `json:"output"`
+	Success            bool     `json:"success"`
+	NeedsClarification bool     `json:"needs_clarification,omitempty"`
+	Question           string   `json:"question,omitempty"`
 }
 
 type Agent interface {
@@ -73,23 +75,80 @@ func (a *agent) cleanCode(raw string) string {
 	return strings.TrimSpace(code)
 }
 
+// isClarificationRequest проверяет, является ли ответ модели уточняющим вопросом
+func (a *agent) isClarificationRequest(response string) (bool, string) {
+	trimmed := strings.TrimSpace(response)
+
+	// Логируем сырой ответ
+	log.Printf("[DEBUG] isClarificationRequest raw: %q", response)
+	log.Printf("[DEBUG] isClarificationRequest trimmed: %q", trimmed)
+
+	// Удаляем возможную обёртку lua{...}lua
+	if strings.HasPrefix(trimmed, "lua{") && strings.HasSuffix(trimmed, "}lua") {
+		trimmed = trimmed[4 : len(trimmed)-4]
+		trimmed = strings.TrimSpace(trimmed)
+		log.Printf("[DEBUG] After removing lua wrapper: %q", trimmed)
+	}
+
+	// Проверяем на Clarify:
+	if strings.HasPrefix(trimmed, "Clarify:") {
+		question := strings.TrimPrefix(trimmed, "Clarify:")
+		log.Printf("[DEBUG] Found Clarify, question: %q", question)
+		return true, strings.TrimSpace(question)
+	}
+
+	// Проверяем частичное совпадение (на случай обрезания)
+	if strings.Contains(trimmed, "larify:") {
+		parts := strings.SplitN(trimmed, "larify:", 2)
+		if len(parts) == 2 {
+			return true, strings.TrimSpace(parts[1])
+		}
+	}
+
+	if strings.Contains(trimmed, "?") && !strings.Contains(trimmed, "lua{") {
+		log.Printf("[DEBUG] Found question mark, returning as clarification")
+		return true, trimmed
+	}
+
+	log.Printf("[DEBUG] Not a clarification request")
+	return false, ""
+}
+
 func (a *agent) Generate(ctx context.Context, prompt string) (*Result, error) {
 	start := time.Now()
 	log.Printf("[DEBUG] Original prompt: %s", prompt)
+
 	var lastCode string
 	var lastError string
+	var lastResponse string
 
 	for attempt := 1; attempt <= a.maxRetries; attempt++ {
 		response, err := a.llm.Generate(ctx, prompt)
 		if err != nil {
 			lastError = err.Error()
+			log.Printf("[DEBUG] LLM generate error (attempt %d): %v", attempt, err)
 			continue
 		}
 
-		code := a.cleanCode(response) // ← используем защищенную очистку
+		lastResponse = response
+		log.Printf("[DEBUG] LLM response (attempt %d): %s", attempt, response)
 
+		// Проверяем, не задала ли LLM уточняющий вопрос
+		if isClarification, question := a.isClarificationRequest(response); isClarification {
+			log.Printf("[AGENT] LLM requests clarification: %s", question)
+			return &Result{
+				Success:            true,
+				NeedsClarification: true,
+				Question:           question,
+			}, nil // ← ВАЖНО: возвращаем результат, а не nil
+		}
+		
+
+		// Очищаем код от обёрток
+		code := a.cleanCode(response)
 		lastCode = code
 
+		// Валидируем код
 		validationResult := a.validator.Validate(code)
 		if validationResult.Valid {
 			entry := &storage.HistoryEntry{
@@ -110,15 +169,19 @@ func (a *agent) Generate(ctx context.Context, prompt string) (*Result, error) {
 			}, nil
 		}
 
+		// Код не прошёл валидацию
 		if len(validationResult.Errors) > 0 {
 			lastError = validationResult.Errors[0]
 		} else {
 			lastError = "validation failed"
 		}
 
-		// Используем исправленный BuildCorrectionPrompt
+		log.Printf("[DEBUG] Validation failed (attempt %d): %s", attempt, lastError)
+
+		// Строим промпт для исправления
 		prompt = prompts.BuildCorrectionPrompt(prompt, code, lastError)
 	}
 
-	return nil, fmt.Errorf("failed after %d attempts: %s", a.maxRetries, lastError)
+	return nil, fmt.Errorf("failed after %d attempts. Last response: %s, Last error: %s",
+		a.maxRetries, lastResponse, lastError)
 }

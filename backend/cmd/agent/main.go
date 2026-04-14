@@ -92,7 +92,7 @@ func main() {
 
 	// Убираем метод из пути (разрешаем любые методы)
 	mux.HandleFunc("/generate", handler.GenerateHandler)
-	mux.HandleFunc("/history", handler.HistoryHandler)
+	mux.HandleFunc("/history", handler.Fantomas)
 	mux.HandleFunc("/stats", handler.StatsHandler)
 	mux.HandleFunc("/feedback", handler.FeedbackHandler)
 

@@ -147,50 +147,38 @@ func (e *JSONFormatError) Error() string {
 }
 
 // checkJSONStringFormat проверяет формат lua{...}lua
-// checkJSONStringFormat проверяет формат lua{...}lua или просто валидный Lua код
 func (v *MWSValidator) checkJSONStringFormat(code string) error {
 	trimmed := strings.TrimSpace(code)
 
-	// Если код уже в правильном формате
-	if strings.HasPrefix(trimmed, "lua{") && strings.HasSuffix(trimmed, "}lua") {
-		inner := trimmed[4 : len(trimmed)-4]
-		if strings.TrimSpace(inner) == "" {
-			return &JSONFormatError{
-				Message:  "Code inside lua{...}lua cannot be empty",
-				Expected: "some Lua code",
-				Found:    "empty",
-				Hint:     "Write your Lua logic between lua{ and }lua",
-			}
-		}
-		return nil
-	}
-
-	// Если код без обертки, но это валидный Lua — пропускаем с предупреждением
-	// (или можно автоматически обернуть)
-	if v.isValidLuaCode(trimmed) {
-		// Автоматически оборачиваем
-		// Но это требует доступа к修改 кода, что сложно
-		return nil // временно разрешаем
-	}
-
-	return &JSONFormatError{
-		Message:  "Code must be wrapped in JSONString format",
-		Expected: "lua{ ... }lua",
-		Found:    trimmed[:min(len(trimmed), 30)] + "...",
-		Hint:     "Wrap your code like this: lua{return wf.vars.data}lua",
-	}
-}
-
-// isValidLuaCode проверяет, выглядит ли строка как валидный Lua код
-func (v *MWSValidator) isValidLuaCode(code string) bool {
-	// Простая проверка: содержит ли код ключевые слова Lua
-	luaKeywords := []string{"return", "function", "local", "if", "for", "while", "end"}
-	for _, kw := range luaKeywords {
-		if strings.Contains(code, kw) {
-			return true
+	if !strings.HasPrefix(trimmed, "lua{") {
+		return &JSONFormatError{
+			Message:  "Code must be wrapped in JSONString format",
+			Expected: "lua{ ... }lua",
+			Found:    trimmed[:min(len(trimmed), 30)] + "...",
+			Hint:     "Wrap your code like this: lua{return wf.vars.data}lua",
 		}
 	}
-	return false
+
+	if !strings.HasSuffix(trimmed, "}lua") {
+		return &JSONFormatError{
+			Message:  "Code must end correctly",
+			Expected: "... }lua",
+			Found:    trimmed[len(trimmed)-min(len(trimmed), 10):],
+			Hint:     "Close your code with }lua",
+		}
+	}
+
+	inner := trimmed[4 : len(trimmed)-4]
+	if strings.TrimSpace(inner) == "" {
+		return &JSONFormatError{
+			Message:  "Code inside lua{...}lua cannot be empty",
+			Expected: "some Lua code",
+			Found:    "empty",
+			Hint:     "Write your Lua logic between lua{ and }lua",
+		}
+	}
+
+	return nil
 }
 
 // findLineNumber находит номер строки по позиции символа
