@@ -3,7 +3,9 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -65,6 +67,7 @@ func createTables(db *sql.DB) error {
 }
 
 // Save сохраняет запись истории
+// Save сохраняет запись истории
 func (r *PostgresRepository) Save(ctx context.Context, entry *HistoryEntry) error {
 	// Убедимся, что сессия существует
 	_, err := r.db.ExecContext(ctx, `
@@ -75,13 +78,22 @@ func (r *PostgresRepository) Save(ctx context.Context, entry *HistoryEntry) erro
 		return fmt.Errorf("failed to ensure session: %w", err)
 	}
 
+	// Конвертируем Plan в JSON строку для PostgreSQL
+	planJSON := "[]"
+	if len(entry.Plan) > 0 {
+		planBytes, err := json.Marshal(entry.Plan)
+		if err == nil {
+			planJSON = string(planBytes)
+		}
+	}
+
 	query := `
     INSERT INTO histories (id, session_id, prompt, code, explanation, plan, success, error_message, execution_time_ms, created_at)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10)
     `
 	_, err = r.db.ExecContext(ctx, query,
 		entry.ID, entry.SessionID, entry.Prompt, entry.Code,
-		entry.Explanation, entry.Plan, entry.Success,
+		entry.Explanation, planJSON, entry.Success,
 		entry.ErrorMessage, entry.ExecutionTimeMs, entry.CreatedAt,
 	)
 	if err != nil {
@@ -134,6 +146,7 @@ func (r *PostgresRepository) GetSessionHistory(ctx context.Context, sessionID st
     `
 	rows, err := r.db.QueryContext(ctx, query, sessionID, limit)
 	if err != nil {
+		log.Printf("[ERROR] GetSessionHistory query failed: %v", err)
 		return nil, fmt.Errorf("failed to query history: %w", err)
 	}
 	defer rows.Close()
@@ -141,14 +154,35 @@ func (r *PostgresRepository) GetSessionHistory(ctx context.Context, sessionID st
 	var entries []*HistoryEntry
 	for rows.Next() {
 		var entry HistoryEntry
+		var plan sql.NullString // ← используем sql.NullString для NULL значений
+
 		err := rows.Scan(
-			&entry.ID, &entry.SessionID, &entry.Prompt, &entry.Code,
-			&entry.Explanation, &entry.Plan, &entry.Success,
-			&entry.ErrorMessage, &entry.ExecutionTimeMs, &entry.CreatedAt,
+			&entry.ID,
+			&entry.SessionID,
+			&entry.Prompt,
+			&entry.Code,
+			&entry.Explanation,
+			&plan,
+			&entry.Success,
+			&entry.ErrorMessage,
+			&entry.ExecutionTimeMs,
+			&entry.CreatedAt,
 		)
 		if err != nil {
+			log.Printf("[ERROR] GetSessionHistory scan failed: %v", err)
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
+
+		// Конвертируем plan из JSON строки в []string
+		if plan.Valid && plan.String != "" {
+			var planSlice []string
+			if err := json.Unmarshal([]byte(plan.String), &planSlice); err == nil {
+				entry.Plan = planSlice
+			}
+		} else {
+			entry.Plan = []string{} // пустой массив вместо NULL
+		}
+
 		entries = append(entries, &entry)
 	}
 

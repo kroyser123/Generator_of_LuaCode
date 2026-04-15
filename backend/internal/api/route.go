@@ -2,11 +2,13 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
+	"log"
 	"mega-agent/internal/agent"
 	"mega-agent/internal/storage"
 	"net/http"
 	"strconv"
+
+	"github.com/google/uuid"
 )
 
 type Handler struct {
@@ -35,7 +37,14 @@ func (h *Handler) GenerateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.agent.Generate(r.Context(), req.Prompt)
+	// Используем session_id из запроса или генерируем новый
+	sessionID := req.SessionID
+	if sessionID == "" {
+		sessionID = uuid.New().String()
+	}
+
+	// ВЫЗОВ С sessionID (исправлено!)
+	result, err := h.agent.Generate(r.Context(), req.Prompt, sessionID)
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "generation failed", err.Error())
 		return
@@ -47,8 +56,8 @@ func (h *Handler) GenerateHandler(w http.ResponseWriter, r *http.Request) {
 		Plan:               result.Plan,
 		Output:             result.Output,
 		Success:            result.Success,
-		NeedsClarification: result.NeedsClarification, // ← добавить
-		Question:           result.Question,           // ← добавить
+		NeedsClarification: result.NeedsClarification,
+		Question:           result.Question,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -61,6 +70,8 @@ func (h *Handler) Fantomas(w http.ResponseWriter, r *http.Request) {
 	sessionID := r.URL.Query().Get("session_id")
 	limitStr := r.URL.Query().Get("limit")
 
+	log.Printf("[DEBUG] History request: session_id=%s, limit=%s", sessionID, limitStr)
+
 	limit := 20
 	if limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 100 {
@@ -70,9 +81,12 @@ func (h *Handler) Fantomas(w http.ResponseWriter, r *http.Request) {
 
 	entries, err := h.storage.GetSessionHistory(r.Context(), sessionID, limit)
 	if err != nil {
+		log.Printf("[ERROR] Failed to get history: %v", err)
 		h.writeError(w, http.StatusInternalServerError, "failed to get history", err.Error())
 		return
 	}
+
+	log.Printf("[DEBUG] Found %d entries for session %s", len(entries), sessionID)
 
 	resp := HistoryResponse{
 		Entries: make([]HistoryEntry, 0, len(entries)),
@@ -139,15 +153,19 @@ func (h *Handler) FeedbackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ВАЖНО: используем feedback как новый prompt для генерации
-	// Добавляем контекст предыдущего кода
-	enhancedPrompt := req.Feedback
-	if req.PreviousCode != "" {
-		enhancedPrompt = fmt.Sprintf("Предыдущий код:\n%s\n\nЗапрос на исправление:\n%s", req.PreviousCode, req.Feedback)
+	sessionID := req.SessionID
+	if sessionID == "" {
+		sessionID = uuid.New().String()
 	}
 
-	// Генерируем новый код на основе feedback
-	result, err := h.agent.Generate(r.Context(), enhancedPrompt)
+	// Строим промпт на основе фидбека
+	prompt := req.Feedback
+	if req.PreviousCode != "" {
+		prompt = "На основе этого кода:\n" + req.PreviousCode + "\n\nИсправь по запросу: " + req.Feedback
+	}
+
+	// ВЫЗОВ С sessionID
+	result, err := h.agent.Generate(r.Context(), prompt, sessionID)
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "generation failed", err.Error())
 		return

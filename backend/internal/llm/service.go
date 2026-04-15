@@ -18,7 +18,7 @@ func NewService(endpoint, model string) Client {
 	}
 }
 
-func (s *llmService) Generate(ctx context.Context, prompt string) (string, error) {
+func (s *llmService) Generate(ctx context.Context, prompt string, sessionID string) (string, error) {
 	// Добавляем system prompt в сообщения
 	messages := []llmclient.ChatMessage{
 		{Role: "system", Content: prompts.GetSystemPrompt()},

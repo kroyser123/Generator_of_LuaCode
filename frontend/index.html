@@ -1,121 +1,121 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lua AI Agent - MTS Hackathon</title>
-    <link rel="stylesheet" href="css/style.css">
-</head>
-<body>
-    <main>
-        <!-- ОСНОВНАЯ СЕКЦИЯ: 3 колонки в ряд -->
-        <section class="promo">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Lua AI Agent - MTS Hackathon</title>
+		<link rel="stylesheet" href="css/style.css" />
+	</head>
+	<body>
+		<main>
+			<!-- ОСНОВНАЯ СЕКЦИЯ: 3 колонки в ряд -->
+			<section class="promo">
+				<!-- ========== 1 КОНТЕЙНЕР: ЛЕВАЯ ПАНЕЛЬ (25%) ========== -->
+				<div class="container">
+					<!-- ВЕРХНЯЯ ЧАСТЬ (30% высоты) - меню и статусы -->
+					<div class="menue">
+						<!-- БЛОК "О ЧЕМ Я ДУМАЮ" -->
+						<div class="thinking-section">
+							<div class="thinking-label">What am I thinking about now</div>
+						</div>
 
-            <!-- ========== 1 КОНТЕЙНЕР: ЛЕВАЯ ПАНЕЛЬ (25%) ========== -->
-            <div class="container">
-                
-                <!-- ВЕРХНЯЯ ЧАСТЬ (30% высоты) - меню и статусы -->
-                <div class="menue">
-                    
-                    <!-- БЛОК "О ЧЕМ Я ДУМАЮ" -->
-                    <div class="thinking-section">
-                        <div class="thinking-label"> What am I thinking about now</div>
-                    </div>
-                    
-                    <!-- БЛОК ТАЙМЕРА -->
-                    <div class="timer-section">
-                        <div class="timer-row">
-                            <span class="timer-label"> timer</span>
-                            <div class="timer-value-wrapper">
-                                <span class="timer-value" id="timerValue">0</span>
-                                <span class="timer-unit">ms</span>
-                            </div>
-                        </div>
-                    </div>
+						<!-- БЛОК ТАЙМЕРА -->
+						<div class="timer-section">
+							<div class="timer-row">
+								<span class="timer-label"> timer</span>
+								<div class="timer-value-wrapper">
+									<span class="timer-value" id="timerValue">0</span>
+									<span class="timer-unit">ms</span>
+								</div>
+							</div>
+						</div>
 
-                    <!-- ДЕКОРАТИВНАЯ ЛИНИЯ (обрезана на 70% справа) -->
-                    <div class="menue-border"></div>
-                </div>
+						<!-- ДЕКОРАТИВНАЯ ЛИНИЯ (обрезана на 70% справа) -->
+						<div class="menue-border"></div>
+					</div>
 
-                <!-- НИЖНЯЯ ЧАСТЬ (70% высоты) - дополнительная информация -->
-                <div class="outputthinking">
-                    <!-- Здесь будет статистика или доп.информация -->
-                </div>
+					<div class="outputthinking">
+						<!-- Блок для вывода мыслей модели -->
+						<div class="thoughts-container">
+							<div class="thoughts-header">
+								<span>PROCESS THINKING</span>
+							</div>
+							<div class="thoughts-list" id="thoughtsList">
+								<div class="thought-message system">
+									Модель инициализирована. Готов к работе.
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
 
-            </div>
-            
-            <!-- ========== 2 КОНТЕЙНЕР: ЦЕНТРАЛЬНАЯ ПАНЕЛЬ (55%) ========== -->
-            <!-- Здесь будет чат с AI-агентом -->
-            <div class="container2">
-    
-    <!-- ========== ШАПКА ЧАТА ========== -->
-    <div class="chat-header">
-        <div class="chat-header-info">
-            <div class="chat-avatar"></div>
-            <div class="chat-title">
-                <h3>Lua AI Agent</h3>
-                <p>Генерация кода под MWS Octapi</p>
-            </div>
-        </div>
-        <button class="history-btn" id="historyBtn">
-             История
-        </button>
-    </div>
-    
-    <!-- ========== ОБЛАСТЬ СООБЩЕНИЙ (скролл) ========== -->
-    <div class="chat-messages" id="chatMessages">
-        <!-- Приветственное сообщение -->
-        <div class="message bot">
-            <div class="message-avatar"></div>
-            <div class="message-content-wrapper">
-                <div class="message-content">
-                    Привет! Я AI-агент для генерации Lua-кода.<br><br>
-                     <strong>Что я умею:</strong><br>
-                    • Генерировать код по описанию задачи<br>
-                    • Задавать уточняющие вопросы<br>
-                    • Исправлять код по фидбеку<br>
-                    • Работать с MWS Octapi<br><br>
-                     <strong>Примеры запросов:</strong><br>
-                    - "Напиши функцию для сложения двух чисел"<br>
-                    - "Создай RSI индикатор"<br>
-                    - "Очисти данные от дубликатов"
-                </div>
-                <div class="message-time">только что</div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- ========== ПАНЕЛЬ ВВОДА СООБЩЕНИЯ ========== -->
-    <div class="chat-input-area">
-        <div class="input-wrapper">
-            <textarea 
-                id="userInput" 
-                class="chat-input" 
-                placeholder="Опишите задачу для генерации Lua-кода..."
-                rows="1"
-            ></textarea>
-            <button class="send-btn" id="sendBtn">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="22" y1="2" x2="11" y2="13"></line>
-                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                </svg>
-            </button>
-        </div>
-        <div class="input-hint">
-            Shift + Enter — новая строка | Enter — отправить
-        </div>
-        </div>
-    
-    </div>
+				<!-- ========== 2 КОНТЕЙНЕР: ЦЕНТРАЛЬНАЯ ПАНЕЛЬ (55%) ========== -->
+				<!-- Здесь будет чат с AI-агентом -->
+				<div class="container2">
+					<div class="chat-header">
+						<div class="chat-header-info">
+							<div class="chat-avatar"></div>
+							<div class="chat-title">
+								<h3>Lua AI Agent</h3>
+								<p>Генерация кода под MWS Octapi</p>
+							</div>
+						</div>
+						<button class="history-btn" id="historyBtn">История</button>
+					</div>
 
-            <!-- ========== 3 КОНТЕЙНЕР: ПРАВАЯ ПАНЕЛЬ (20%) ========== -->
-            <div class="container3">
+					<div class="chat-messages" id="chatMessages">
+						<div class="message bot">
+							<div class="message-avatar"></div>
+							<div class="message-content-wrapper">
+								<div class="message-content">
+									Привет! Я AI-агент для генерации Lua-кода.<br /><br />
+									<strong>Что я умею:</strong><br />
+									• Генерировать код по описанию задачи<br />
+									• Задавать уточняющие вопросы<br />
+									• Исправлять код по фидбеку<br />
+									• Работать с MWS Octapi<br /><br />
+									<strong>Примеры запросов:</strong><br />
+									- "Напиши функцию для сложения двух чисел"<br />
+									- "Создай RSI индикатор"<br />
+									- "Очисти данные от дубликатов"
+								</div>
+								<div class="message-time">только что</div>
+							</div>
+						</div>
+					</div>
 
-            </div>
+					<div class="chat-input-area">
+						<div class="input-wrapper">
+							<textarea
+								id="userInput"
+								class="chat-input"
+								placeholder="Опишите задачу для генерации Lua-кода..."
+								rows="1"
+							></textarea>
+							<button class="send-btn" id="sendBtn">
+								<svg
+									width="20"
+									height="20"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<line x1="22" y1="2" x2="11" y2="13"></line>
+									<polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+								</svg>
+							</button>
+						</div>
+						<div class="input-hint">
+							Shift + Enter — новая строка | Enter — отправить
+						</div>
+					</div>
+				</div>
 
-        </section>
-    </main>
+				<div class="container3"></div>
+			</section>
+		</main>
 
-    <script src="js/script.js"></script>
-</body>
+		<script src="js/script.js"></script>
+	</body>
 </html>

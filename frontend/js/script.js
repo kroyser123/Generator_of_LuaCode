@@ -159,7 +159,6 @@ function addBotMessage(text, isCode = false) {
 	if (isCode) {
 		content = formatCodeBlock(text, 'lua')
 	} else {
-		// Вот эта строка может дублировать текст, если escapeHtml неправильно работает
 		content = escapeHtml(text).replace(/\n/g, '<br>')
 	}
 
@@ -544,7 +543,6 @@ function init() {
 	currentSessionId = generateSessionId()
 	console.log('Session ID:', currentSessionId)
 	updateThinkingText('Готов к работе ✅')
-
 	// Добавляем стили для модального окна истории
 	const modalStyles = document.createElement('style')
 	modalStyles.textContent = `
@@ -622,6 +620,199 @@ function init() {
         .error { color: #dc3545; }
     `
 	document.head.appendChild(modalStyles)
+}
+
+// ========== ФУНКЦИИ ДЛЯ МЫСЛЕЙ МОДЕЛИ ==========
+
+// Добавление мысли в блок
+function addThought(message, type = 'processing') {
+	const thoughtsList = document.getElementById('thoughtsList')
+	if (!thoughtsList) return
+
+	const thoughtDiv = document.createElement('div')
+	thoughtDiv.className = `thought-message ${type}`
+
+	const now = new Date()
+	const timeStr = now.toLocaleTimeString('ru-RU', {
+		hour: '2-digit',
+		minute: '2-digit',
+		second: '2-digit',
+	})
+
+	thoughtDiv.innerHTML = `
+        <div>${message}</div>
+        <div class="thought-time">${timeStr}</div>
+    `
+
+	thoughtsList.appendChild(thoughtDiv)
+
+	// Автоскролл вниз
+	thoughtDiv.scrollIntoView({ behavior: 'smooth', block: 'end' })
+
+	// Ограничиваем количество мыслей (оставляем последние 30)
+	while (thoughtsList.children.length > 30) {
+		thoughtsList.removeChild(thoughtsList.firstChild)
+	}
+}
+
+// Очистка мыслей (опционально)
+function clearThoughts() {
+	const thoughtsList = document.getElementById('thoughtsList')
+	if (thoughtsList) {
+		thoughtsList.innerHTML = ''
+		addThought('Очистка истории мыслей', 'system')
+	}
+}
+
+// ========== ОБНОВЛЕННАЯ ФУНКЦИЯ GENERATE ==========
+async function generateCode(prompt) {
+	// Добавляем мысль о начале генерации
+	addThought(
+		`Получен запрос: "${prompt.substring(0, 50)}${prompt.length > 50 ? '...' : ''}"`,
+		'processing',
+	)
+	addThought('Анализирую задачу...', 'processing')
+
+	const response = await fetch(`${API_BASE_URL}/generate`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({
+			prompt: prompt,
+			session_id: currentSessionId,
+		}),
+	})
+
+	addThought('⚙️ Отправка запроса на сервер...', 'processing')
+
+	if (!response.ok) {
+		addThought(`Ошибка сервера: ${response.status}`, 'error')
+		throw new Error(`HTTP ${response.status}`)
+	}
+
+	addThought('🔄 Получен ответ, обрабатываю...', 'processing')
+
+	const data = await response.json()
+
+	if (data.success) {
+		addThought('Код успешно сгенерирован!', 'success')
+		if (data.execution_time_ms) {
+			addThought(`⏱ Время выполнения: ${data.execution_time_ms} мс`, 'system')
+		}
+	} else {
+		addThought('Генерация не удалась', 'error')
+	}
+
+	return data
+}
+
+// ========== ОБНОВЛЕННАЯ ФУНКЦИЯ FEEDBACK ==========
+async function sendFeedback(feedback, previousCode) {
+	addThought(
+		`Получен фидбек: "${feedback.substring(0, 50)}${feedback.length > 50 ? '...' : ''}"`,
+		'processing',
+	)
+	addThought('Исправляю код на основе обратной связи...', 'processing')
+
+	const response = await fetch(`${API_BASE_URL}/feedback`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({
+			session_id: currentSessionId,
+			feedback: feedback,
+			previous_code: previousCode || '',
+		}),
+	})
+
+	if (!response.ok) {
+		addThought(`Ошибка при исправлении: ${response.status}`, 'error')
+		throw new Error(`HTTP ${response.status}`)
+	}
+
+	const data = await response.json()
+
+	if (data.success) {
+		addThought('Код успешно исправлен!', 'success')
+	} else {
+		addThought('Не удалось исправить код', 'error')
+	}
+
+	return data
+}
+
+// ========== ДОБАВЛЯЕМ МЫСЛИ В SENDMESSAGE ==========
+// Обнови существующую функцию sendMessage, добавив мысли:
+
+async function sendMessage() {
+	const text = userInput.value.trim()
+	if (!text) return
+
+	// Добавляем мысль о начале обработки
+	addThought(
+		` Пользователь: "${text.substring(0, 40)}${text.length > 40 ? '...' : ''}"`,
+		'system',
+	)
+
+	// Если ожидаем уточнение
+	if (isAwaitingClarification) {
+		addThought('Отправляю уточнение...', 'processing')
+		await sendClarificationFeedback(text)
+		return
+	}
+
+	// Обычная генерация
+	addUserMessage(text)
+	userInput.value = ''
+	userInput.style.height = 'auto'
+
+	updateThinkingText('Генерирую код... ')
+	startTimer()
+	showTypingIndicator()
+
+	addThought('Запуск процесса генерации...', 'processing')
+
+	try {
+		const response = await generateCode(text)
+		stopTimer()
+		removeTypingIndicator()
+		setTimerValue(response.execution_time_ms || 0)
+
+		if (response.success) {
+			if (response.needs_clarification && response.question) {
+				isAwaitingClarification = true
+				pendingQuestion = response.question
+				addBotMessage(
+					` **Уточняющий вопрос:**\n\n${response.question}\n\nПожалуйста, уточните ваш запрос.`,
+				)
+				addThought(` Задан уточняющий вопрос: "${response.question}"`, 'ai')
+				updateThinkingText('Ожидаю уточнение... ')
+			} else {
+				addGeneratedCodeResponse(response)
+				addThought('💡 Код отправлен пользователю', 'success')
+				updateThinkingText('Готов к работе ')
+				isAwaitingClarification = false
+				pendingQuestion = null
+			}
+		} else {
+			addThought(' Ошибка в ответе сервера', 'error')
+			addBotMessage(
+				` **Ошибка генерации**\n\nНе удалось сгенерировать код. Попробуйте переформулировать запрос.`,
+			)
+			updateThinkingText('Ошибка ')
+		}
+	} catch (error) {
+		stopTimer()
+		removeTypingIndicator()
+		addThought(` Критическая ошибка: ${error.message}`, 'error')
+		addBotMessage(
+			` **Ошибка:** ${error.message}\n\nПроверьте, запущен ли бекенд на ${API_BASE_URL}`,
+		)
+		updateThinkingText('Ошибка соединения ')
+		console.error('Generate error:', error)
+	}
 }
 
 // Запуск инициализации

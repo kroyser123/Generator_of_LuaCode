@@ -1,17 +1,17 @@
 -- Таблица сессий
 CREATE TABLE IF NOT EXISTS sessions (
-    id UUID PRIMARY KEY,
+    id TEXT PRIMARY KEY,
     created_at BIGINT NOT NULL
 );
 
 -- Таблица истории
 CREATE TABLE IF NOT EXISTS histories (
-    id UUID PRIMARY KEY,
-    session_id UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
     prompt TEXT NOT NULL,
     code TEXT NOT NULL,
     explanation TEXT,
-    plan TEXT[],
+    plan JSONB,  -- ← меняем с TEXT[] на JSONB
     success BOOLEAN NOT NULL,
     error_message TEXT,
     execution_time_ms BIGINT NOT NULL,

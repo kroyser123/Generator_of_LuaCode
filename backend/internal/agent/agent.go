@@ -34,7 +34,7 @@ type Result struct {
 }
 
 type Agent interface {
-	Generate(ctx context.Context, prompt string) (*Result, error)
+	Generate(ctx context.Context, prompt string, id string) (*Result, error)
 }
 
 func NewAgent(llmClient llm.Client, val validator.Validator, repo storage.Repository, sessionID string) Agent {
@@ -114,7 +114,7 @@ func (a *agent) isClarificationRequest(response string) (bool, string) {
 	return false, ""
 }
 
-func (a *agent) Generate(ctx context.Context, prompt string) (*Result, error) {
+func (a *agent) Generate(ctx context.Context, prompt string, sessionID string) (*Result, error) {
 	start := time.Now()
 	log.Printf("[DEBUG] Original prompt: %s", prompt)
 
@@ -123,7 +123,7 @@ func (a *agent) Generate(ctx context.Context, prompt string) (*Result, error) {
 	var lastResponse string
 
 	for attempt := 1; attempt <= a.maxRetries; attempt++ {
-		response, err := a.llm.Generate(ctx, prompt)
+		response, err := a.llm.Generate(ctx, prompt, sessionID)
 		if err != nil {
 			lastError = err.Error()
 			log.Printf("[DEBUG] LLM generate error (attempt %d): %v", attempt, err)
@@ -142,7 +142,6 @@ func (a *agent) Generate(ctx context.Context, prompt string) (*Result, error) {
 				Question:           question,
 			}, nil // ← ВАЖНО: возвращаем результат, а не nil
 		}
-		
 
 		// Очищаем код от обёрток
 		code := a.cleanCode(response)
@@ -153,7 +152,7 @@ func (a *agent) Generate(ctx context.Context, prompt string) (*Result, error) {
 		if validationResult.Valid {
 			entry := &storage.HistoryEntry{
 				ID:              uuid.New().String(),
-				SessionID:       a.sessionID,
+				SessionID:       sessionID,
 				Prompt:          prompt,
 				Code:            lastCode,
 				Success:         true,
