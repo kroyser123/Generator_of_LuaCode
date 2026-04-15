@@ -56,30 +56,26 @@ func (a *agent) cleanCode(raw string) string {
 	} else if strings.HasPrefix(code, "```") {
 		code = strings.TrimPrefix(code, "```")
 	}
-
-	// Удаляем закрывающие fences (только если они есть в конце)
 	if strings.HasSuffix(code, "```") {
 		code = strings.TrimSuffix(code, "```")
 	}
 
-	// Проверяем формат lua{...}lua
-	if strings.HasPrefix(code, "lua{") && strings.Contains(code, "}lua") {
-		// Извлекаем содержимое между lua{ и }lua
-		start := strings.Index(code, "lua{") + 4
-		end := strings.LastIndex(code, "}lua")
-		if end > start {
-			code = code[start:end]
-		}
+	code = strings.TrimSpace(code)
+
+	if !strings.HasPrefix(code, "lua{") {
+		code = "lua{" + code
+	}
+	if !strings.HasSuffix(code, "}lua") {
+		code = code + "}lua"
 	}
 
-	return strings.TrimSpace(code)
+	return code
 }
 
 // isClarificationRequest проверяет, является ли ответ модели уточняющим вопросом
 func (a *agent) isClarificationRequest(response string) (bool, string) {
 	trimmed := strings.TrimSpace(response)
 
-	// Логируем сырой ответ
 	log.Printf("[DEBUG] isClarificationRequest raw: %q", response)
 	log.Printf("[DEBUG] isClarificationRequest trimmed: %q", trimmed)
 
@@ -97,7 +93,7 @@ func (a *agent) isClarificationRequest(response string) (bool, string) {
 		return true, strings.TrimSpace(question)
 	}
 
-	// Проверяем частичное совпадение (на случай обрезания)
+	// Проверяем частичное совпадение
 	if strings.Contains(trimmed, "larify:") {
 		parts := strings.SplitN(trimmed, "larify:", 2)
 		if len(parts) == 2 {
@@ -114,7 +110,48 @@ func (a *agent) isClarificationRequest(response string) (bool, string) {
 	return false, ""
 }
 
+// isComplexRequest проверяет, требует ли запрос Chain-of-Thought
+func (a *agent) isComplexRequest(prompt string) bool {
+	complexKeywords := []string{
+		"RSI", "MACD", "индикатор", "алгоритм", "сложный",
+		"анализ", "рассчитать", "оптимизировать", "рекурсия",
+	}
+	lowerPrompt := strings.ToLower(prompt)
+	for _, kw := range complexKeywords {
+		if strings.Contains(lowerPrompt, strings.ToLower(kw)) {
+			return true
+		}
+	}
+	return false
+}
+
+// hasSecurityRisk проверяет, есть ли риск безопасности в запросе
+func (a *agent) hasSecurityRisk(prompt string) bool {
+	securityKeywords := []string{
+		"os.execute", "io.popen", "loadstring", "debug",
+		"удали файл", "delete file", "system command",
+		"выполни команду", "shell", "exec",
+	}
+	lowerPrompt := strings.ToLower(prompt)
+	for _, kw := range securityKeywords {
+		if strings.Contains(lowerPrompt, strings.ToLower(kw)) {
+			return true
+		}
+	}
+	return false
+}
+
 func (a *agent) Generate(ctx context.Context, prompt string, sessionID string) (*Result, error) {
+	// Для сложных запросов добавляем CoT
+	if a.isComplexRequest(prompt) {
+		prompt = prompts.GetCOTPrompt() + "\n\n" + prompt
+	}
+
+	// Проверяем безопасность
+	if a.hasSecurityRisk(prompt) {
+		prompt = prompts.GetSecurityPrompt() + "\n\n" + prompt
+	}
+
 	start := time.Now()
 
 	// Загружаем few-shot примеры из БД

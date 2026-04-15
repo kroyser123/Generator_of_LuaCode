@@ -28,10 +28,6 @@ var securityPrompt string
 //go:embed validation.txt
 var validationPrompt string
 
-func GetSystemPrompt() string {
-	return systemPrompt
-}
-
 // BuildFewShotPrompt строит промпт с примерами из БД
 func BuildFewShotPrompt(examples []*storage.HistoryEntry, userPrompt string) string {
 	if len(examples) == 0 {
@@ -86,4 +82,27 @@ func BuildOptimizationPrompt(code string) string {
 
 func BuildSecurityPrompt(request string) string {
 	return strings.ReplaceAll(securityPrompt, "{request}", request)
+}
+func GetSystemPrompt() string {
+	return systemPrompt
+}
+
+func GetCOTPrompt() string {
+	return cotPrompt
+}
+
+func GetClarifyPrompt() string {
+	return clarifyPrompt
+}
+
+func GetOptimizationPrompt() string {
+	return optimizationPrompt
+}
+
+func GetSecurityPrompt() string {
+	return securityPrompt
+}
+
+func GetValidationPrompt() string {
+	return validationPrompt
 }
