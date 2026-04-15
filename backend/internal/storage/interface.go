@@ -36,5 +36,6 @@ type Repository interface {
     GetRecentSuccess(ctx context.Context, sessionID string, limit int) ([]*HistoryEntry, error)
     GetSessionHistory(ctx context.Context, sessionID string, limit int) ([]*HistoryEntry, error)
     GetStats(ctx context.Context, sessionID string) (*Stats, error)
+    GetFewShotExamples(ctx context.Context, limit int) ([]*HistoryEntry, error)  // ← добавить
     Close() error
 }

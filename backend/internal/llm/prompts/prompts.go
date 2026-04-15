@@ -2,6 +2,8 @@ package prompts
 
 import (
 	_ "embed"
+	"fmt"
+	"mega-agent/internal/storage"
 	"strings"
 )
 
@@ -30,15 +32,34 @@ func GetSystemPrompt() string {
 	return systemPrompt
 }
 
+// BuildFewShotPrompt строит промпт с примерами из БД
+func BuildFewShotPrompt(examples []*storage.HistoryEntry, userPrompt string) string {
+	if len(examples) == 0 {
+		return userPrompt
+	}
+
+	var sb strings.Builder
+	sb.WriteString("Вот примеры правильных ответов:\n\n")
+
+	for i, ex := range examples {
+		if i >= 5 { // ограничиваем 5 примерами
+			break
+		}
+		sb.WriteString(fmt.Sprintf("Пример %d:\n", i+1))
+		sb.WriteString(fmt.Sprintf("Запрос: %s\n", ex.Prompt))
+		sb.WriteString(fmt.Sprintf("Ответ: %s\n\n", ex.Code))
+	}
+
+	sb.WriteString(fmt.Sprintf("Теперь ответь на запрос: %s", userPrompt))
+	return sb.String()
+}
+
 func BuildCorrectionPrompt(originalPrompt, badCode, errorMsg string) string {
 	result := correctionPrompt
-
-	// Исправляем: заменяем все плейсхолдеры
 	result = strings.ReplaceAll(result, "{original_request}", originalPrompt)
 	result = strings.ReplaceAll(result, "{previous_code_snippet}", badCode)
 	result = strings.ReplaceAll(result, "{error_message}", errorMsg)
 
-	// Определяем тип ошибки
 	errorType := "UNKNOWN_ERROR"
 	lowerMsg := strings.ToLower(errorMsg)
 	if strings.Contains(lowerMsg, "syntax") || strings.Contains(lowerMsg, "unexpected") {

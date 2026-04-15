@@ -102,6 +102,56 @@ func (r *PostgresRepository) Save(ctx context.Context, entry *HistoryEntry) erro
 
 	return nil
 }
+func (r *PostgresRepository) GetFewShotExamples(ctx context.Context, limit int) ([]*HistoryEntry, error) {
+	query := `
+    SELECT id, session_id, prompt, code, explanation, plan, success, error_message, execution_time_ms, created_at
+    FROM histories
+    WHERE success = true AND code != ''
+    ORDER BY created_at DESC
+    LIMIT $1
+    `
+	rows, err := r.db.QueryContext(ctx, query, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query few-shot examples: %w", err)
+	}
+	defer rows.Close()
+
+	var entries []*HistoryEntry
+	for rows.Next() {
+		var entry HistoryEntry
+		var planJSON sql.NullString
+
+		err := rows.Scan(
+			&entry.ID,
+			&entry.SessionID,
+			&entry.Prompt,
+			&entry.Code,
+			&entry.Explanation,
+			&planJSON,
+			&entry.Success,
+			&entry.ErrorMessage,
+			&entry.ExecutionTimeMs,
+			&entry.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan row: %w", err)
+		}
+
+		if planJSON.Valid && planJSON.String != "" {
+			var planSlice []string
+			if err := json.Unmarshal([]byte(planJSON.String), &planSlice); err == nil {
+				entry.Plan = planSlice
+			}
+		}
+		if entry.Plan == nil {
+			entry.Plan = []string{}
+		}
+
+		entries = append(entries, &entry)
+	}
+
+	return entries, nil
+}
 
 // GetRecentSuccess возвращает последние успешные генерации (для few-shot)
 func (r *PostgresRepository) GetRecentSuccess(ctx context.Context, sessionID string, limit int) ([]*HistoryEntry, error) {

@@ -116,14 +116,24 @@ func (a *agent) isClarificationRequest(response string) (bool, string) {
 
 func (a *agent) Generate(ctx context.Context, prompt string, sessionID string) (*Result, error) {
 	start := time.Now()
-	log.Printf("[DEBUG] Original prompt: %s", prompt)
+
+	// Загружаем few-shot примеры из БД
+	examples, err := a.storage.GetFewShotExamples(ctx, 5)
+	if err != nil {
+		log.Printf("[WARN] Failed to load few-shot examples: %v", err)
+		examples = []*storage.HistoryEntry{}
+	}
+
+	// Строим промпт с примерами
+	finalPrompt := prompts.BuildFewShotPrompt(examples, prompt)
+	log.Printf("[DEBUG] Few-shot examples count: %d", len(examples))
 
 	var lastCode string
 	var lastError string
 	var lastResponse string
 
 	for attempt := 1; attempt <= a.maxRetries; attempt++ {
-		response, err := a.llm.Generate(ctx, prompt, sessionID)
+		response, err := a.llm.Generate(ctx, finalPrompt, sessionID)
 		if err != nil {
 			lastError = err.Error()
 			log.Printf("[DEBUG] LLM generate error (attempt %d): %v", attempt, err)
@@ -133,21 +143,21 @@ func (a *agent) Generate(ctx context.Context, prompt string, sessionID string) (
 		lastResponse = response
 		log.Printf("[DEBUG] LLM response (attempt %d): %s", attempt, response)
 
-		// Проверяем, не задала ли LLM уточняющий вопрос
+		// Проверяем на Clarify
 		if isClarification, question := a.isClarificationRequest(response); isClarification {
 			log.Printf("[AGENT] LLM requests clarification: %s", question)
 			return &Result{
 				Success:            true,
 				NeedsClarification: true,
 				Question:           question,
-			}, nil // ← ВАЖНО: возвращаем результат, а не nil
+			}, nil
 		}
 
-		// Очищаем код от обёрток
+		// Очищаем код
 		code := a.cleanCode(response)
 		lastCode = code
 
-		// Валидируем код
+		// Валидируем
 		validationResult := a.validator.Validate(code)
 		if validationResult.Valid {
 			entry := &storage.HistoryEntry{
@@ -168,7 +178,6 @@ func (a *agent) Generate(ctx context.Context, prompt string, sessionID string) (
 			}, nil
 		}
 
-		// Код не прошёл валидацию
 		if len(validationResult.Errors) > 0 {
 			lastError = validationResult.Errors[0]
 		} else {
@@ -177,8 +186,8 @@ func (a *agent) Generate(ctx context.Context, prompt string, sessionID string) (
 
 		log.Printf("[DEBUG] Validation failed (attempt %d): %s", attempt, lastError)
 
-		// Строим промпт для исправления
-		prompt = prompts.BuildCorrectionPrompt(prompt, code, lastError)
+		// Для исправления используем исходный промпт (без few-shot)
+		finalPrompt = prompts.BuildCorrectionPrompt(prompt, code, lastError)
 	}
 
 	return nil, fmt.Errorf("failed after %d attempts. Last response: %s, Last error: %s",
