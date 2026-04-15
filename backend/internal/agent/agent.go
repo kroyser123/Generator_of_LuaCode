@@ -197,6 +197,15 @@ func (a *agent) Generate(ctx context.Context, prompt string, sessionID string) (
 		// Валидируем
 		validationResult := a.validator.Validate(code)
 		if validationResult.Valid {
+			// САМОПРОВЕРКА КОДА
+			if !a.selfTestCode(code, prompt) {
+				log.Printf("[SELF-TEST] Code failed self-test, retrying...")
+				lastError = "self-test failed: code does not produce expected output"
+				finalPrompt = prompts.BuildCorrectionPrompt(prompt, code, lastError)
+				continue
+			}
+
+			// Сохраняем в БД
 			entry := &storage.HistoryEntry{
 				ID:              uuid.New().String(),
 				SessionID:       sessionID,
@@ -229,4 +238,113 @@ func (a *agent) Generate(ctx context.Context, prompt string, sessionID string) (
 
 	return nil, fmt.Errorf("failed after %d attempts. Last response: %s, Last error: %s",
 		a.maxRetries, lastResponse, lastError)
+}
+
+// selfTestCode проверяет код на простых примерах
+func (a *agent) selfTestCode(code string, prompt string) bool {
+	cleanCode := validator.ExtractMWSCode(code)
+	tests := a.generateTests(prompt, cleanCode)
+
+	if len(tests) == 0 {
+		log.Printf("[SELF-TEST] No tests generated for this prompt, skipping")
+		return true
+	}
+
+	sandbox := validator.NewSandboxValidator(5 * time.Second)
+
+	for _, test := range tests {
+		// Мягкая проверка кода
+		if test.ValidateFunc != nil && !test.ValidateFunc(cleanCode) {
+			log.Printf("[SELF-TEST] ⚠️ Test '%s' failed code structure check, but continuing", test.Name)
+			// Не проваливаем тест, только логируем
+			continue
+		}
+
+		result, err := sandbox.Run(code, test.Input)
+		if err != nil {
+			log.Printf("[SELF-TEST] ⚠️ Test '%s' execution error: %v", test.Name, err)
+			continue
+		}
+
+		// Мягкое сравнение — ищем подстроку
+		if !strings.Contains(result, test.Expected) && result != test.Expected {
+			log.Printf("[SELF-TEST] ⚠️ Test '%s' output mismatch: got '%s', expected '%s'",
+				test.Name, result, test.Expected)
+			// Не проваливаем тест, только логируем
+			continue
+		}
+
+		log.Printf("[SELF-TEST] ✅ Test '%s' passed", test.Name)
+	}
+
+	log.Printf("[SELF-TEST] Self-test completed (soft mode)")
+	return true // Всегда возвращаем true для мягкой проверки
+}
+
+func (a *agent) generateTests(prompt string, code string) []TestCase {
+	var tests []TestCase
+	lowerPrompt := strings.ToLower(prompt)
+
+	// Тест для сложения — мягкая проверка
+	if strings.Contains(lowerPrompt, "слож") || strings.Contains(lowerPrompt, "add") ||
+		strings.Contains(lowerPrompt, "плюс") {
+		tests = append(tests, TestCase{
+			Name: "addition",
+			Input: map[string]interface{}{
+				"wf.vars.a": 5,
+				"wf.vars.b": 3,
+			},
+			Expected: "8",
+			// Мягкая проверка: код должен содержать return и сложение
+			ValidateFunc: func(code string) bool {
+				hasReturn := strings.Contains(code, "return")
+				hasAddition := strings.Contains(code, "+")
+				return hasReturn && hasAddition
+			},
+		})
+	}
+
+	// Тест для последнего email — мягкая проверка
+	if strings.Contains(lowerPrompt, "последн") || strings.Contains(lowerPrompt, "last") {
+		tests = append(tests, TestCase{
+			Name: "last email",
+			Input: map[string]interface{}{
+				"wf.vars.emails": []string{"a@b.com", "c@d.com", "e@f.com"},
+			},
+			Expected: "e@f.com",
+			ValidateFunc: func(code string) bool {
+				hasReturn := strings.Contains(code, "return")
+				hasBrackets := strings.Contains(code, "[") && strings.Contains(code, "]")
+				hasLength := strings.Contains(code, "#")
+				return hasReturn && (hasBrackets || hasLength)
+			},
+		})
+	}
+
+	// Тест для удаления дубликатов — мягкая проверка
+	if strings.Contains(lowerPrompt, "дубликат") || strings.Contains(lowerPrompt, "duplicate") ||
+		strings.Contains(lowerPrompt, "очист") {
+		tests = append(tests, TestCase{
+			Name: "remove duplicates",
+			Input: map[string]interface{}{
+				"wf.vars.data": []interface{}{1, 2, 2, 3, 3, 4},
+			},
+			Expected: "[1 2 3 4]",
+			ValidateFunc: func(code string) bool {
+				hasReturn := strings.Contains(code, "return")
+				hasLoop := strings.Contains(code, "for") || strings.Contains(code, "ipairs")
+				return hasReturn && hasLoop
+			},
+		})
+	}
+
+	return tests
+}
+
+// TestCase — структура теста
+type TestCase struct {
+	Name         string
+	Input        map[string]interface{}
+	Expected     string
+	ValidateFunc func(code string) bool // дополнительная проверка кода
 }

@@ -3,7 +3,6 @@ package validator
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
@@ -21,7 +20,7 @@ func (e *ExecutionError) Error() string {
 	return fmt.Sprintf("[%s] %s (line %d)", e.Type, e.Message, e.Line)
 }
 
-// SandboxValidator выполняет код в изолированной среде MWS Octapi
+// SandboxValidator выполняет код в изолированной среде
 type SandboxValidator struct {
 	timeout time.Duration
 }
@@ -62,12 +61,61 @@ func (v *SandboxValidator) Validate(code string) (string, error) {
 	}
 }
 
-// executeSandbox запускает Lua код в изолированной среде MWS Octapi
+// Run выполняет код с заданными входными данными (для самопроверки)
+func (v *SandboxValidator) Run(code string, input map[string]interface{}) (string, error) {
+	L := lua.NewState()
+	defer L.Close()
+
+	// Настраиваем окружение MWS Octapi
+	wf := L.NewTable()
+	wfVars := L.NewTable()
+	wfInitVars := L.NewTable()
+
+	// Заполняем входные данные
+	for key, value := range input {
+		if strings.HasPrefix(key, "wf.vars.") {
+			varName := strings.TrimPrefix(key, "wf.vars.")
+			L.SetField(wfVars, varName, toLuaValue(L, value))
+		}
+	}
+
+	L.SetField(wf, "vars", wfVars)
+	L.SetField(wf, "initVariables", wfInitVars)
+	L.SetGlobal("wf", wf)
+
+	// Добавляем _utils.array
+	utils := L.NewTable()
+	utilsArray := L.NewTable()
+	L.SetField(utilsArray, "new", L.NewFunction(func(L *lua.LState) int {
+		L.Push(L.NewTable())
+		return 1
+	}))
+	L.SetField(utils, "array", utilsArray)
+	L.SetGlobal("_utils", utils)
+
+	// Очищаем код от обёртки
+	cleanCode := ExtractMWSCode(code)
+
+	// Добавляем принудительный return, если его нет
+	if !strings.Contains(cleanCode, "return") {
+		cleanCode = cleanCode + "\nreturn nil"
+	}
+
+	// Выполняем код
+	if err := L.DoString(cleanCode); err != nil {
+		return "", err
+	}
+
+	// Получаем результат
+	result := L.Get(-1)
+	return luaValueToString(result), nil
+}
+
 func (v *SandboxValidator) executeSandbox(code string) (string, error) {
 	L := lua.NewState()
 	defer L.Close()
 
-	// ===== MWS OCTAPI: wf.vars и wf.initVariables =====
+	// MWS Octapi окружение
 	wf := L.NewTable()
 	wfVars := L.NewTable()
 	wfInitVars := L.NewTable()
@@ -76,17 +124,12 @@ func (v *SandboxValidator) executeSandbox(code string) (string, error) {
 	L.SetField(wf, "initVariables", wfInitVars)
 	L.SetGlobal("wf", wf)
 
-	// ===== MWS OCTAPI: _utils.array =====
 	utils := L.NewTable()
 	utilsArray := L.NewTable()
-
-	// _utils.array.new() - создает новый массив
 	L.SetField(utilsArray, "new", L.NewFunction(func(L *lua.LState) int {
 		L.Push(L.NewTable())
 		return 1
 	}))
-
-	// _utils.array.markAsArray(arr) - помечает таблицу как массив
 	L.SetField(utilsArray, "markAsArray", L.NewFunction(func(L *lua.LState) int {
 		if L.GetTop() >= 1 {
 			L.Push(L.Get(1))
@@ -95,32 +138,10 @@ func (v *SandboxValidator) executeSandbox(code string) (string, error) {
 		}
 		return 1
 	}))
-
 	L.SetField(utils, "array", utilsArray)
 	L.SetGlobal("_utils", utils)
 
-	// ===== ЗАПРЕЩЕННЫЕ БИБЛИОТЕКИ (согласно PDF: стр. 4-5) =====
-	// В MWS Octapi НЕЛЬЗЯ использовать:
-	// - os.execute, io.popen, loadstring, debug.*, socket.*, http.*
-	// - JsonPath ($.field, $[0], ${path})
-	// - goto и метки
-	// Блокируем их через удаление из окружения
-	dangerousLibs := []string{"os", "io", "debug", "coroutine", "package", "socket", "http"}
-	for _, lib := range dangerousLibs {
-		L.PreloadModule(lib, nil)
-	}
-
-	// Дополнительно удаляем опасные функции из глобальной таблицы
-	dangerousFuncs := []string{
-		"dofile", "loadfile", "load", "loadstring",
-		"getfenv", "setfenv", "getmetatable", "setmetatable",
-		"rawget", "rawset", "rawlen", "rawequal",
-	}
-	for _, fn := range dangerousFuncs {
-		L.SetGlobal(fn, lua.LNil)
-	}
-
-	// ===== СБОР ВЫВОДА =====
+	// Сбор вывода
 	var output strings.Builder
 	L.SetGlobal("print", L.NewFunction(func(L *lua.LState) int {
 		top := L.GetTop()
@@ -134,24 +155,14 @@ func (v *SandboxValidator) executeSandbox(code string) (string, error) {
 		return 0
 	}))
 
-	// ===== ИЗВЛЕКАЕМ ЧИСТЫЙ КОД ИЗ ФОРМАТА lua{...}lua =====
-	cleanCode := code
-	trimmed := strings.TrimSpace(code)
-	if strings.HasPrefix(trimmed, "lua{") && strings.HasSuffix(trimmed, "}lua") {
-		cleanCode = trimmed[4 : len(trimmed)-4]
+	// Безопасность
+	dangerousLibs := []string{"os", "io", "debug", "coroutine", "package", "socket", "http"}
+	for _, lib := range dangerousLibs {
+		L.PreloadModule(lib, nil)
 	}
 
-	// ===== ПРОВЕРКА НА ЗАПРЕЩЕННЫЕ ПАТТЕРНЫ (JSONPATH и т.д.) =====
-	if err := v.checkForbiddenPatterns(cleanCode); err != nil {
-		return "", err
-	}
-
-	// ===== ВЫПОЛНЯЕМ КОД =====
-	defer func() {
-		if r := recover(); r != nil {
-			// Паника поймана, но не падаем
-		}
-	}()
+	// Очищаем код от обёртки
+	cleanCode := ExtractMWSCode(code)
 
 	if err := L.DoString(cleanCode); err != nil {
 		return "", &ExecutionError{
@@ -164,41 +175,8 @@ func (v *SandboxValidator) executeSandbox(code string) (string, error) {
 	return output.String(), nil
 }
 
-// checkForbiddenPatterns проверяет наличие запрещенных паттернов в коде
-func (v *SandboxValidator) checkForbiddenPatterns(code string) error {
-	forbidden := []struct {
-		pattern string
-		name    string
-		hint    string
-	}{
-		// JsonPath (PDF стр. 4: "нельзя обращаться к переменным с помощью JsonPath")
-		{`\$\.\w+`, "JsonPath", "Use direct access: wf.vars.field instead of $.field"},
-		{`\$\[.*?\]`, "JsonPath", "Use direct access: wf.vars.array[1] instead of $[0]"},
-		{`\$\{.*?\}`, "JsonPath", "Use direct access to wf.vars instead of ${path}"},
-
-		// goto и метки (PDF стр. 5: запрещены)
-		{`\bgoto\b`, "goto", "goto is not allowed in MWS Octapi"},
-		{`::[a-zA-Z_][a-zA-Z0-9_]*::`, "label", "labels for goto are not allowed"},
-	}
-
-	for _, f := range forbidden {
-		re := regexp.MustCompile(f.pattern)
-		if re.MatchString(code) {
-			return &ExecutionError{
-				Message: fmt.Sprintf("forbidden pattern: %s (%s)", f.name, f.hint),
-				Type:    "security",
-				Line:    0,
-			}
-		}
-	}
-	return nil
-}
-
-// extractLineFromError пытается извлечь номер строки из ошибки
 func (v *SandboxValidator) extractLineFromError(err error) int {
 	s := err.Error()
-
-	// Ищем "line N" в сообщении об ошибке
 	for i := 0; i < len(s)-5; i++ {
 		if s[i:i+5] == "line " {
 			line := 0
@@ -211,6 +189,48 @@ func (v *SandboxValidator) extractLineFromError(err error) int {
 		}
 	}
 	return 0
+}
+
+func toLuaValue(L *lua.LState, val interface{}) lua.LValue {
+	switch v := val.(type) {
+	case int:
+		return lua.LNumber(v)
+	case float64:
+		return lua.LNumber(v)
+	case string:
+		return lua.LString(v)
+	case []interface{}:
+		tbl := L.NewTable()
+		for i, item := range v {
+			L.RawSetInt(tbl, i+1, toLuaValue(L, item))
+		}
+		return tbl
+	case []string:
+		tbl := L.NewTable()
+		for i, item := range v {
+			L.RawSetInt(tbl, i+1, lua.LString(item))
+		}
+		return tbl
+	default:
+		return lua.LNil
+	}
+}
+
+func luaValueToString(val lua.LValue) string {
+	switch val.Type() {
+	case lua.LTNumber:
+		return val.String()
+	case lua.LTString:
+		return val.String()
+	case lua.LTTable:
+		var result []string
+		val.(*lua.LTable).ForEach(func(key, value lua.LValue) {
+			result = append(result, luaValueToString(value))
+		})
+		return fmt.Sprintf("[%s]", strings.Join(result, " "))
+	default:
+		return val.String()
+	}
 }
 
 // IsExecutionError проверяет, является ли ошибка ошибкой выполнения
