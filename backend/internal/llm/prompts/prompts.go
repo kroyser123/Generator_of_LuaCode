@@ -106,3 +106,25 @@ func GetSecurityPrompt() string {
 func GetValidationPrompt() string {
 	return validationPrompt
 }
+
+// BuildRAGPrompt строит промпт с похожими примерами из векторной базы
+func BuildRAGPrompt(examples []*storage.HistoryEntry, userPrompt string) string {
+	if len(examples) == 0 {
+		return userPrompt
+	}
+
+	var sb strings.Builder
+	sb.WriteString("=== ПОХОЖИЕ ПРИМЕРЫ ИЗ БАЗЫ ЗНАНИЙ ===\n\n")
+
+	for i, ex := range examples {
+		if i >= 2 {
+			break
+		}
+		sb.WriteString(fmt.Sprintf("Пример %d:\n", i+1))
+		sb.WriteString(fmt.Sprintf("Запрос: %s\n", ex.Prompt))
+		sb.WriteString(fmt.Sprintf("Ответ: %s\n\n", ex.Code))
+	}
+
+	sb.WriteString(fmt.Sprintf("=== ТЕКУЩИЙ ЗАПРОС ===\n%s", userPrompt))
+	return sb.String()
+}

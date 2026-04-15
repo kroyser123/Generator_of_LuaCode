@@ -26,6 +26,50 @@ func NewOllamaClient(endpoint, model string) *OllamaClient {
 	}
 }
 
+type EmbedRequest struct {
+	Model string `json:"model"`
+	Input string `json:"input"`
+}
+
+type EmbedResponse struct {
+	Embedding []float32 `json:"embedding"`
+}
+
+func (c *OllamaClient) Embed(ctx context.Context, text string) ([]float32, error) {
+	req := EmbedRequest{
+		Model: c.model,
+		Input: text,
+	}
+
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("marshal embed request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.endpoint+"/api/embeddings", bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("create embed request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.http.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("do embed request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ollama embed returned %d", resp.StatusCode)
+	}
+
+	var result EmbedResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decode embed response: %w", err)
+	}
+
+	return result.Embedding, nil
+}
+
 type ChatMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`

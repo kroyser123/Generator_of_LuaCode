@@ -161,9 +161,32 @@ func (a *agent) Generate(ctx context.Context, prompt string, sessionID string) (
 		examples = []*storage.HistoryEntry{}
 	}
 
-	// Строим промпт с примерами
-	finalPrompt := prompts.BuildFewShotPrompt(examples, prompt)
+	// ========== ВСТАВИТЬ ЭТОТ КОД ЗДЕСЬ ==========
+	// Получаем эмбеддинг для RAG поиска
+	embedding, err := a.llm.GetEmbedding(ctx, prompt)
+	if err != nil {
+		log.Printf("[WARN] Failed to get embedding: %v", err)
+		embedding = nil
+	}
+
+	// Ищем похожие примеры
+	var similarExamples []*storage.HistoryEntry
+	if embedding != nil {
+		similarExamples, err = a.storage.FindSimilarByEmbedding(ctx, embedding, 3)
+		if err != nil {
+			log.Printf("[WARN] Failed to find similar examples: %v", err)
+			similarExamples = []*storage.HistoryEntry{}
+		}
+		log.Printf("[RAG] Found %d similar examples", len(similarExamples))
+	}
+	// ============================================
+
+	// Строим промпт с RAG примерами
+	finalPrompt := prompts.BuildRAGPrompt(similarExamples, prompt)
+	finalPrompt = prompts.BuildFewShotPrompt(examples, finalPrompt)
+
 	log.Printf("[DEBUG] Few-shot examples count: %d", len(examples))
+	log.Printf("[DEBUG] RAG examples count: %d", len(similarExamples))
 
 	var lastCode string
 	var lastError string

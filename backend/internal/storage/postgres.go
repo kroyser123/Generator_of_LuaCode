@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -301,4 +302,103 @@ func (r *PostgresRepository) Close() error {
 		return r.db.Close()
 	}
 	return nil
+}
+
+// FindSimilarByEmbedding ищет похожие примеры по эмбеддингу
+func (r *PostgresRepository) FindSimilarByEmbedding(ctx context.Context, embedding []float32, limit int) ([]*HistoryEntry, error) {
+	if len(embedding) == 0 {
+		return []*HistoryEntry{}, nil
+	}
+
+	embStr := vectorToString(embedding)
+
+	query := `
+    SELECT id, session_id, prompt, code, explanation, plan, success, error_message, execution_time_ms, created_at,
+           1 - (embedding <=> $1) as similarity
+    FROM histories
+    WHERE embedding IS NOT NULL AND success = true
+    ORDER BY embedding <=> $1
+    LIMIT $2
+    `
+	rows, err := r.db.QueryContext(ctx, query, embStr, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find similar examples: %w", err)
+	}
+	defer rows.Close()
+
+	var entries []*HistoryEntry
+	for rows.Next() {
+		var entry HistoryEntry
+		var planJSON sql.NullString
+		var similarity float64
+
+		err := rows.Scan(
+			&entry.ID,
+			&entry.SessionID,
+			&entry.Prompt,
+			&entry.Code,
+			&entry.Explanation,
+			&planJSON,
+			&entry.Success,
+			&entry.ErrorMessage,
+			&entry.ExecutionTimeMs,
+			&entry.CreatedAt,
+			&similarity,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan row: %w", err)
+		}
+
+		if planJSON.Valid && planJSON.String != "" {
+			var planSlice []string
+			if err := json.Unmarshal([]byte(planJSON.String), &planSlice); err == nil {
+				entry.Plan = planSlice
+			}
+		}
+		if entry.Plan == nil {
+			entry.Plan = []string{}
+		}
+
+		entries = append(entries, &entry)
+	}
+
+	return entries, nil
+}
+
+// UpdateEmbedding обновляет эмбеддинг для записи
+func (r *PostgresRepository) UpdateEmbedding(ctx context.Context, id string, embedding []float32) error {
+	if len(embedding) == 0 {
+		return nil
+	}
+
+	embStr := vectorToString(embedding)
+	_, err := r.db.ExecContext(ctx, `UPDATE histories SET embedding = $1 WHERE id = $2`, embStr, id)
+	if err != nil {
+		return fmt.Errorf("failed to update embedding: %w", err)
+	}
+	return nil
+}
+
+// vectorToString преобразует []float32 в строку для PostgreSQL
+func vectorToString(v []float32) string {
+	if len(v) == 0 {
+		return "[]"
+	}
+	var sb strings.Builder
+	sb.WriteString("[")
+	for i, val := range v {
+		if i > 0 {
+			sb.WriteString(",")
+		}
+		sb.WriteString(fmt.Sprintf("%f", val))
+	}
+	sb.WriteString("]")
+	return sb.String()
+}
+
+func truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }

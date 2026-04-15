@@ -2,7 +2,7 @@ package llm
 
 import "context"
 
-// Client — интерфейс LLM клиента
 type Client interface {
-	Generate(ctx context.Context, prompt string, sessionID string) (string, error)
+    Generate(ctx context.Context, prompt string, sessionID string) (string, error)
+    GetEmbedding(ctx context.Context, text string) ([]float32, error)
 }
