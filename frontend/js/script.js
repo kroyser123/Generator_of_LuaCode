@@ -44,6 +44,20 @@ function generateSessionId() {
 		return v.toString(16)
 	})
 }
+function saveSessionId() {
+	localStorage.setItem('mws_session_id', currentSessionId)
+}
+
+// Загрузка session_id
+function loadSessionId() {
+	const saved = localStorage.getItem('mws_session_id')
+	if (saved) {
+		currentSessionId = saved
+	} else {
+		currentSessionId = generateSessionId()
+		localStorage.setItem('mws_session_id', currentSessionId)
+	}
+}
 
 /**
  * Экранирование HTML символов (безопасность)
@@ -140,6 +154,7 @@ function addUserMessage(text) {
 
 	chatMessages.appendChild(messageDiv)
 	scrollChatToBottom()
+	saveChat()
 }
 
 /**
@@ -172,6 +187,7 @@ function addBotMessage(text, isCode = false) {
 
 	chatMessages.appendChild(messageDiv)
 	scrollChatToBottom()
+	saveChat()
 }
 
 /**
@@ -540,10 +556,13 @@ if (historyBtn) {
  * Инициализация сессии
  */
 function init() {
-	currentSessionId = generateSessionId()
+	loadSessionId() // ← загружаем session_id
+	loadChat() // ← загружаем чат
+
 	console.log('Session ID:', currentSessionId)
 	updateThinkingText('Готов к работе ✅')
-	// Добавляем стили для модального окна истории
+
+	// Добавляем стили для модального окна истории (оставляем как было)
 	const modalStyles = document.createElement('style')
 	modalStyles.textContent = `
         .history-modal {
@@ -812,6 +831,27 @@ async function sendMessage() {
 		)
 		updateThinkingText('Ошибка соединения ')
 		console.error('Generate error:', error)
+	}
+}
+
+function saveChat() {
+	const messages = document.getElementById('chatMessages').innerHTML
+	localStorage.setItem('chat', messages)
+	localStorage.setItem('currentCode', currentCode || '')
+	localStorage.setItem('isAwaitingClarification', isAwaitingClarification)
+	localStorage.setItem('pendingQuestion', pendingQuestion || '')
+}
+
+// Восстанавливаем чат при загрузке
+function loadChat() {
+	const saved = localStorage.getItem('chat')
+	if (saved) {
+		document.getElementById('chatMessages').innerHTML = saved
+		currentCode = localStorage.getItem('currentCode') || null
+		isAwaitingClarification =
+			localStorage.getItem('isAwaitingClarification') === 'true'
+		pendingQuestion = localStorage.getItem('pendingQuestion') || null
+		scrollChatToBottom()
 	}
 }
 
